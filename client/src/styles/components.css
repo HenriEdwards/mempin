@@ -1,0 +1,151 @@
+.btn {
+  border: none;
+  border-radius: 0.85rem;
+  padding: 0.65rem 1.25rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--color-primary);
+  color: white;
+  box-shadow: 0 10px 20px var(--color-primary-soft);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--color-text);
+}
+
+.btn-outline {
+  background: transparent;
+  border: 1px solid var(--color-border);
+}
+
+.form-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.field label {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.input,
+.textarea,
+.select,
+.slider {
+  border-radius: 0.85rem;
+  border: 1px solid var(--color-border);
+  padding: 0.85rem 1rem;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 0.95rem;
+  width: 100%;
+}
+
+.textarea {
+  min-height: 120px;
+  resize: vertical;
+}
+
+.slider {
+  padding: 0.4rem;
+}
+
+.chip-group {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.chip {
+  border-radius: 999px;
+  padding: 0.4rem 0.9rem;
+  background: var(--color-surface-muted);
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.pill {
+  padding: 0.15rem 0.65rem;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  font-size: 0.8rem;
+}
+
+.visibility-public {
+  border-color: #4ade80;
+  color: #16a34a;
+}
+
+.visibility-friends {
+  border-color: #60a5fa;
+  color: #2563eb;
+}
+
+.visibility-unlisted {
+  border-color: #fbbf24;
+  color: #b45309;
+}
+
+.visibility-private {
+  border-color: #f87171;
+  color: #b91c1c;
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3000;
+  padding: 1rem;
+}
+
+.tooltip-anchor {
+  position: relative;
+  display: inline-flex;
+}
+
+.tooltip-anchor::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 0.35rem);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--color-text);
+  color: white;
+  padding: 0.3rem 0.5rem;
+  border-radius: 0.35rem;
+  font-size: 0.75rem;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+  white-space: nowrap;
+}
+
+.tooltip-anchor:hover::after {
+  opacity: 0.9;
+}

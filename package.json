@@ -1,0 +1,21 @@
+{
+  "dependencies": {
+    "express-session": "^1.18.1"
+  },
+  "name": "project-memories",
+  "version": "1.0.0",
+  "main": "tmp_wc.js",
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "nodemon": "^3.1.11"
+  },
+  "scripts": {
+    "dev": "concurrently \"npm run server\" \"npm run client\" --names \"SERVER,CLIENT\" --prefix \"[{name}]\" --kill-others-on-fail",
+    "server": "cd \"server\" && npm run dev",
+    "client": "cd \"client\" && npm run dev"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs"
+}
