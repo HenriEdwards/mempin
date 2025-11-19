@@ -9,6 +9,8 @@ import OverlappingMemoryPanel from '../components/memory/OverlappingMemoryPanel.
 import MemoryDetailsModal from '../components/memory/MemoryDetailsModal.jsx';
 import MemoriesPanel from '../components/memory/MemoriesPanel.jsx';
 import TopRightActions from '../components/layout/TopRightActions.jsx';
+import ProfilePanel from '../components/profile/ProfilePanel.jsx';
+import FriendsPanel from '../components/friends/FriendsPanel.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useUI } from '../context/UIContext.jsx';
 import api from '../services/api.js';
@@ -31,7 +33,7 @@ function useToast() {
 
 function MapPage() {
   const { user, status, isGuest, loginAsGuest } = useAuth();
-  const { isMemoriesPanelOpen, closeMemoriesPanel } = useUI();
+  const { activePanel, closePanel } = useUI();
   const [userLocation, setUserLocation] = useState(null);
   const [locationError, setLocationError] = useState('');
   const [nearbyMemories, setNearbyMemories] = useState([]);
@@ -177,10 +179,10 @@ function MapPage() {
 
   const handleMemoryFromPanel = useCallback(
     (memory) => {
-      closeMemoriesPanel();
+      closePanel();
       fetchMemoryDetails(memory.id);
     },
-    [closeMemoriesPanel, fetchMemoryDetails],
+    [closePanel, fetchMemoryDetails],
   );
 
   const processMemorySelection = useCallback(
@@ -268,12 +270,14 @@ function MapPage() {
       </Modal>
 
       <MemoriesPanel
-        isOpen={isMemoriesPanelOpen}
-        onClose={closeMemoriesPanel}
+        isOpen={activePanel === 'memories'}
+        onClose={closePanel}
         placedMemories={placedMemories}
         foundMemories={foundMemories}
         onSelectMemory={handleMemoryFromPanel}
       />
+      <ProfilePanel isOpen={activePanel === 'profile'} onClose={closePanel} />
+      <FriendsPanel isOpen={activePanel === 'friends'} onClose={closePanel} />
 
       <Modal
         isOpen={Boolean(memoryGroupSelection)}

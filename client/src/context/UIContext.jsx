@@ -1,24 +1,48 @@
 import { createContext, useCallback, useContext, useMemo, useState } from 'react';
 
 const UIContext = createContext({
+  activePanel: null,
   isMemoriesPanelOpen: false,
+  isProfilePanelOpen: false,
+  isFriendsPanelOpen: false,
+  openPanel: () => {},
+  closePanel: () => {},
   openMemoriesPanel: () => {},
   closeMemoriesPanel: () => {},
+  openProfilePanel: () => {},
+  openFriendsPanel: () => {},
 });
 
 export function UIProvider({ children }) {
-  const [isMemoriesPanelOpen, setMemoriesPanelOpen] = useState(false);
+  const [activePanel, setActivePanel] = useState(null);
 
-  const openMemoriesPanel = useCallback(() => setMemoriesPanelOpen(true), []);
-  const closeMemoriesPanel = useCallback(() => setMemoriesPanelOpen(false), []);
+  const openPanel = useCallback((panel) => setActivePanel(panel), []);
+  const closePanel = useCallback(() => setActivePanel(null), []);
+  const openMemoriesPanel = useCallback(() => openPanel('memories'), [openPanel]);
+  const openProfilePanel = useCallback(() => openPanel('profile'), [openPanel]);
+  const openFriendsPanel = useCallback(() => openPanel('friends'), [openPanel]);
 
   const value = useMemo(
     () => ({
-      isMemoriesPanelOpen,
+      activePanel,
+      isMemoriesPanelOpen: activePanel === 'memories',
+      isProfilePanelOpen: activePanel === 'profile',
+      isFriendsPanelOpen: activePanel === 'friends',
+      openPanel,
+      closePanel,
       openMemoriesPanel,
-      closeMemoriesPanel,
+      closeMemoriesPanel: closePanel,
+      openProfilePanel,
+      openFriendsPanel,
     }),
-    [isMemoriesPanelOpen, openMemoriesPanel, closeMemoriesPanel],
+    [
+      activePanel,
+      openPanel,
+      closePanel,
+      openMemoriesPanel,
+      openProfilePanel,
+      openFriendsPanel,
+    ],
   );
 
   return <UIContext.Provider value={value}>{children}</UIContext.Provider>;

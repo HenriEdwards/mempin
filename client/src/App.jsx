@@ -1,12 +1,24 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { useEffect } from 'react';
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import MapPage from './pages/MapPage.jsx';
-import ProfilePage from './pages/ProfilePage.jsx';
-import FriendsPage from './pages/FriendsPage.jsx';
 import MemorySharePage from './pages/MemorySharePage.jsx';
 import { ThemeProvider } from './context/ThemeContext.jsx';
 import { AuthProvider } from './context/AuthContext.jsx';
 import { UIProvider } from './context/UIContext.jsx';
 import MainLayout from './components/layout/MainLayout.jsx';
+import { useUI } from './context/UIContext.jsx';
+
+function PanelRoute({ panel }) {
+  const navigate = useNavigate();
+  const { openPanel } = useUI();
+
+  useEffect(() => {
+    openPanel(panel);
+    navigate('/', { replace: true });
+  }, [navigate, openPanel, panel]);
+
+  return null;
+}
 
 function App() {
   return (
@@ -17,8 +29,8 @@ function App() {
             <Route path="/m/:id" element={<MemorySharePage />} />
             <Route path="/" element={<MainLayout />}>
               <Route index element={<MapPage />} />
-              <Route path="profile" element={<ProfilePage />} />
-              <Route path="friends" element={<FriendsPage />} />
+              <Route path="profile" element={<PanelRoute panel="profile" />} />
+              <Route path="friends" element={<PanelRoute panel="friends" />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Route>
           </Routes>

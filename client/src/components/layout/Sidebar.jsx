@@ -27,7 +27,13 @@ const logoByTheme = {
 
 function Sidebar({ collapsed = true }) {
   const { theme, cycleTheme } = useTheme();
-  const { openMemoriesPanel, isMemoriesPanelOpen } = useUI();
+  const {
+    activePanel,
+    openMemoriesPanel,
+    openProfilePanel,
+    openFriendsPanel,
+    closePanel,
+  } = useUI();
   const location = useLocation();
   const navigate = useNavigate();
   const [hovered, setHovered] = useState(false);
@@ -43,10 +49,22 @@ function Sidebar({ collapsed = true }) {
         label: 'Memories',
         icon: '📚',
         action: openMemoriesPanel,
-        isActive: isMemoriesPanelOpen,
+        isActive: activePanel === 'memories',
       },
-      { key: 'profile', label: 'Profile', icon: '👤', path: '/profile' },
-      { key: 'friends', label: 'Friends', icon: '🤝', path: '/friends' },
+      {
+        key: 'profile',
+        label: 'Profile',
+        icon: '👤',
+        action: openProfilePanel,
+        isActive: activePanel === 'profile',
+      },
+      {
+        key: 'friends',
+        label: 'Friends',
+        icon: '🤝',
+        action: openFriendsPanel,
+        isActive: activePanel === 'friends',
+      },
       {
         key: 'about',
         label: 'About',
@@ -54,11 +72,14 @@ function Sidebar({ collapsed = true }) {
         action: () => window.alert('memloc – leave memories around the world.'),
       },
     ],
-    [isMemoriesPanelOpen, openMemoriesPanel],
+    [activePanel, openMemoriesPanel, openProfilePanel, openFriendsPanel],
   );
 
   const handleNavigate = (item) => {
     if (item.path) {
+      if (item.path === '/') {
+        closePanel();
+      }
       navigate(item.path);
     } else if (item.action) {
       item.action();
