@@ -61,6 +61,10 @@ function ProfilePanel({ isOpen, onClose }) {
                   <span>Total views on my memories</span>
                   <strong>{stats.totalViewsOnMyMemories}</strong>
                 </div>
+                <div>
+                  <span>Followers</span>
+                  <strong>{stats.followerCount}</strong>
+                </div>
               </div>
             )}
             {stats?.latestPlaced && (

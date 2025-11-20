@@ -49,7 +49,7 @@ app.use(
 app.use('/auth', authRoutes);
 app.use('/api/memories', memoryRoutes);
 app.use('/api/users', userRoutes);
-app.use('/api/friends', friendRoutes);
+app.use('/api/followers', friendRoutes);
 app.use('/api/journeys', journeyRoutes);
 
 app.get('/health', (_req, res) => {

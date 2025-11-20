@@ -43,6 +43,12 @@ const getUserStats = asyncHandler(async (req, res) => {
      WHERE m.owner_id = ?`,
     [userId],
   );
+  const followerRows = await db.query(
+    `SELECT COUNT(*) AS count
+     FROM user_followers
+     WHERE following_id = ?`,
+    [userId],
+  );
   const latestPlacedRows = await db.query(
     `SELECT id, title, short_description AS shortDescription, created_at AS createdAt
      FROM memories
@@ -66,6 +72,7 @@ const getUserStats = asyncHandler(async (req, res) => {
       placedCount: placedRows[0]?.count || 0,
       foundCount: foundRows[0]?.count || 0,
       totalViewsOnMyMemories: viewsRows[0]?.totalViews || 0,
+      followerCount: followerRows[0]?.count || 0,
       latestPlaced: latestPlacedRows[0] || null,
       latestFound: latestFoundRows[0] || null,
     },

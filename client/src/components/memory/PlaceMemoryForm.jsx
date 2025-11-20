@@ -7,7 +7,7 @@ import api from '../../services/api.js';
 
 const VISIBILITY_OPTIONS = [
   { value: 'public', label: 'Public' },
-  { value: 'friends', label: 'Friends' },
+  { value: 'followers', label: 'Followers' },
   { value: 'unlisted', label: 'Unlisted' },
   { value: 'private', label: 'Private' },
 ];

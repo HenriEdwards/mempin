@@ -1,13 +1,13 @@
 const express = require('express');
-const { listFriends, addFriend, removeFriend } = require('../controllers/friendController');
+const { listFollowers, addFollower, removeFollower } = require('../controllers/friendController');
 const { requireAuth } = require('../middleware/authMiddleware');
 
 const router = express.Router();
 
 router.use(requireAuth);
 
-router.get('/', listFriends);
-router.post('/', addFriend);
-router.delete('/:id', removeFriend);
+router.get('/', listFollowers);
+router.post('/', addFollower);
+router.delete('/:id', removeFollower);
 
 module.exports = router;

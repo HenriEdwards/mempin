@@ -38,7 +38,7 @@ const getJourneyMemories = asyncHandler(async (req, res) => {
 
 const updateJourneyVisibility = asyncHandler(async (req, res) => {
   const journeyId = Number(req.params.id);
-  const allowed = ['public', 'friends', 'unlisted', 'private'];
+  const allowed = ['public', 'followers', 'unlisted', 'private'];
   const visibility = String(req.body.visibility || '').toLowerCase();
   if (!journeyId) {
     return res.status(400).json({ error: 'Invalid journey id' });

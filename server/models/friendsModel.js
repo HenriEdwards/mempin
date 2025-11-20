@@ -1,19 +1,19 @@
 const db = require('../db/queries');
 const userModel = require('./userModel');
 
-async function getFriends(userId) {
+async function getFollowing(userId) {
   const rows = await db.query(
-    `SELECT uf.friend_user_id AS friendId, u.name, u.email, u.avatar_url AS avatarUrl,
+    `SELECT uf.following_id AS followingId, u.name, u.email, u.avatar_url AS avatarUrl,
             u.created_at AS createdAt
-     FROM user_friends uf
-     INNER JOIN users u ON u.id = uf.friend_user_id
-     WHERE uf.user_id = ?
+     FROM user_followers uf
+     INNER JOIN users u ON u.id = uf.following_id
+     WHERE uf.follower_id = ?
      ORDER BY u.name ASC`,
     [userId],
   );
 
   return rows.map((row) => ({
-    id: row.friendId,
+    id: row.followingId,
     name: row.name,
     email: row.email,
     avatarUrl: row.avatarUrl,
@@ -21,75 +21,96 @@ async function getFriends(userId) {
   }));
 }
 
-async function addFriendByEmail(userId, email) {
-  const friend = await userModel.findByEmail(email);
-  if (!friend) {
+async function getFollowers(userId) {
+  const rows = await db.query(
+    `SELECT uf.follower_id AS followerId, u.name, u.email, u.avatar_url AS avatarUrl,
+            u.created_at AS createdAt
+     FROM user_followers uf
+     INNER JOIN users u ON u.id = uf.follower_id
+     WHERE uf.following_id = ?
+     ORDER BY u.name ASC`,
+    [userId],
+  );
+
+  return rows.map((row) => ({
+    id: row.followerId,
+    name: row.name,
+    email: row.email,
+    avatarUrl: row.avatarUrl,
+    createdAt: row.createdAt,
+  }));
+}
+
+async function followByEmail(userId, email) {
+  const target = await userModel.findByEmail(email);
+  if (!target) {
     const error = new Error('User with that email was not found');
     error.status = 404;
     throw error;
   }
-  if (friend.id === userId) {
-    const error = new Error('You cannot add yourself as a friend');
+  if (target.id === userId) {
+    const error = new Error('You cannot follow yourself');
     error.status = 400;
     throw error;
   }
 
   await db.query(
-    `INSERT INTO user_friends (user_id, friend_user_id)
+    `INSERT INTO user_followers (follower_id, following_id)
      VALUES (?, ?)
-     ON DUPLICATE KEY UPDATE user_id = user_id`,
-    [userId, friend.id],
+     ON DUPLICATE KEY UPDATE follower_id = follower_id`,
+    [userId, target.id],
   );
 
   return {
-    id: friend.id,
-    name: friend.name,
-    email: friend.email,
-    avatarUrl: friend.avatarUrl,
-    createdAt: friend.createdAt,
+    id: target.id,
+    name: target.name,
+    email: target.email,
+    avatarUrl: target.avatarUrl,
+    createdAt: target.createdAt,
   };
 }
 
-async function removeFriend(userId, friendId) {
+async function unfollow(userId, followingId) {
   await db.query(
-    `DELETE FROM user_friends
-     WHERE user_id = ? AND friend_user_id = ?
+    `DELETE FROM user_followers
+     WHERE follower_id = ? AND following_id = ?
      LIMIT 1`,
-    [userId, friendId],
+    [userId, followingId],
   );
 }
 
-async function getFriendOwnerSet(ownerIds = [], currentUserId) {
+async function getFollowingOwnerSet(ownerIds = [], currentUserId) {
   if (!currentUserId || !ownerIds.length) {
     return new Set();
   }
 
   const rows = await db.query(
-    `SELECT user_id
-     FROM user_friends
-     WHERE friend_user_id = ?
-       AND user_id IN (${ownerIds.map(() => '?').join(',')})`,
+    `SELECT following_id
+     FROM user_followers
+     WHERE follower_id = ?
+       AND following_id IN (${ownerIds.map(() => '?').join(',')})`,
     [currentUserId, ...ownerIds],
   );
 
-  return new Set(rows.map((row) => row.user_id));
+  return new Set(rows.map((row) => row.following_id));
 }
 
-async function isFriend(ownerId, friendUserId) {
+async function isFollowing(followerId, followingId) {
   const rows = await db.query(
     `SELECT 1
-     FROM user_friends
-     WHERE user_id = ? AND friend_user_id = ?
+     FROM user_followers
+     WHERE follower_id = ? AND following_id = ?
      LIMIT 1`,
-    [ownerId, friendUserId],
+    [followerId, followingId],
   );
   return rows.length > 0;
 }
 
 module.exports = {
-  getFriends,
-  addFriendByEmail,
-  removeFriend,
-  getFriendOwnerSet,
-  isFriend,
+  getFollowing,
+  getFollowers,
+  followByEmail,
+  unfollow,
+  getFollowingOwnerSet,
+  isFollowing,
 };

@@ -98,7 +98,7 @@ function MemoriesPanel({
                     disabled={updatingId === memory.id}
                   >
                     <option value="public">public</option>
-                    <option value="friends">friends</option>
+                    <option value="followers">followers</option>
                     <option value="unlisted">unlisted</option>
                     <option value="private">private</option>
                   </Select>

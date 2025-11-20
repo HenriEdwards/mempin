@@ -16,7 +16,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { useUI } from '../context/UIContext.jsx';
 import api from '../services/api.js';
 
-const ALL_VISIBILITIES = ['public', 'friends', 'unlisted', 'private'];
+const ALL_VISIBILITIES = ['public', 'followers', 'unlisted', 'private'];
 
 function useToast() {
   const [toast, setToast] = useState(null);
@@ -45,6 +45,7 @@ function MapPage() {
   const [journeys, setJourneys] = useState([]);
   const [journeyMemories, setJourneyMemories] = useState({});
   const [journeyLoadingId, setJourneyLoadingId] = useState(null);
+  const [followingIds, setFollowingIds] = useState(new Set());
   const [placingMemory, setPlacingMemory] = useState(false);
   const [savingMemory, setSavingMemory] = useState(false);
   const [selectedMemory, setSelectedMemory] = useState(null);
@@ -61,6 +62,7 @@ function MapPage() {
     visibilities: new Set(ALL_VISIBILITIES),
     journey: 'all',
     media: 'all',
+    search: '',
   });
   const suggestedTags = useMemo(() => {
     const tagSet = new Set();
@@ -112,6 +114,24 @@ function MapPage() {
     requestLocation();
   }, [requestLocation]);
 
+  const loadConnections = useCallback(async () => {
+    if (!user) {
+      setFollowingIds(new Set());
+      return;
+    }
+    try {
+      const data = await api.getFollowers();
+      const ids = new Set((data.following || []).map((item) => item.id));
+      setFollowingIds(ids);
+    } catch (error) {
+      pushToast(error.message || 'Unable to load following list', 'error');
+    }
+  }, [user, pushToast]);
+
+  useEffect(() => {
+    loadConnections();
+  }, [loadConnections]);
+
   const filteredMemories = useMemo(() => {
     let list = allMemories;
     if (filters.visibilities.size && filters.visibilities.size < ALL_VISIBILITIES.length) {
@@ -123,6 +143,8 @@ function MapPage() {
       list = list.filter((memory) => memory.ownerId !== user.id);
     } else if (filters.ownership === 'unlocked') {
       list = list.filter((memory) => foundIds.has(memory.id));
+    } else if (filters.ownership === 'following' && user) {
+      list = list.filter((memory) => followingIds.has(memory.ownerId));
     }
     if (filters.journey === 'journey') {
       list = list.filter((memory) => Boolean(memory.journeyId));
@@ -133,6 +155,22 @@ function MapPage() {
       list = list.filter((memory) => memory.hasMedia);
     } else if (filters.media === 'textOnly') {
       list = list.filter((memory) => !memory.hasMedia);
+    }
+    if (filters.search.trim()) {
+      const term = filters.search.trim().toLowerCase();
+      list = list.filter((memory) => {
+        const haystack = [
+          memory.title,
+          memory.shortDescription,
+          memory.body,
+          (memory.tags || []).join(' '),
+          memory.journeyTitle,
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase();
+        return haystack.includes(term);
+      });
     }
     return list;
   }, [allMemories, filters, user, foundIds]);
@@ -158,6 +196,7 @@ function MapPage() {
       visibilities: new Set(ALL_VISIBILITIES),
       journey: 'all',
       media: 'all',
+      search: '',
     });
   }, []);
 
@@ -448,6 +487,7 @@ function MapPage() {
           onSelectJourneyType={(value) => setFilters((prev) => ({ ...prev, journey: value }))}
           onSelectMedia={(value) => setFilters((prev) => ({ ...prev, media: value }))}
           onToggleVisibilityFilter={toggleVisibilityFilter}
+          onSearchChange={(value) => setFilters((prev) => ({ ...prev, search: value }))}
         />
       </div>
 
@@ -489,7 +529,7 @@ function MapPage() {
         onSelectMemory={handleMemoryFromPanel}
       />
       <ProfilePanel isOpen={activePanel === 'profile'} onClose={closePanel} />
-      <FriendsPanel isOpen={activePanel === 'friends'} onClose={closePanel} />
+      <FriendsPanel isOpen={activePanel === 'followers'} onClose={closePanel} />
 
       <Modal
         isOpen={Boolean(memoryGroupSelection)}

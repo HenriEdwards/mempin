@@ -56,15 +56,15 @@ const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(coords),
     }),
-  getFriends: () => request('/api/friends'),
-  addFriend: (email) =>
-    request('/api/friends', {
+  getFollowers: () => request('/api/followers'),
+  addFollower: (email) =>
+    request('/api/followers', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email }),
     }),
-  removeFriend: (friendId) =>
-    request(`/api/friends/${friendId}`, {
+  removeFollower: (userId) =>
+    request(`/api/followers/${userId}`, {
       method: 'DELETE',
     }),
   getJourneys: () => request('/api/journeys'),

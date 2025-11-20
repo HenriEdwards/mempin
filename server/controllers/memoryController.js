@@ -13,7 +13,7 @@ const friendsModel = require('../models/friendsModel');
 const journeyModel = require('../models/journeyModel');
 const userModel = require('../models/userModel');
 
-const allowedVisibility = new Set(['public', 'private', 'unlisted', 'friends']);
+const allowedVisibility = new Set(['public', 'private', 'unlisted', 'followers']);
 
 function parseNumber(value) {
   const parsed = typeof value === 'number' ? value : parseFloat(value);
@@ -76,7 +76,7 @@ async function appendTargets(memoryId, emailList = []) {
   }
 }
 
-function canAccessMemory(memory, currentUserId, friendOwnerSet, targetMap) {
+function canAccessMemory(memory, currentUserId, followerOwnerSet, targetMap) {
   const targetUserIds = targetMap[memory.id] || [];
   if (currentUserId && memory.ownerId === currentUserId) {
     return true;
@@ -88,8 +88,8 @@ function canAccessMemory(memory, currentUserId, friendOwnerSet, targetMap) {
   switch (memory.visibility) {
     case 'public':
       return true;
-    case 'friends':
-      return currentUserId ? friendOwnerSet.has(memory.ownerId) : false;
+    case 'followers':
+      return currentUserId ? followerOwnerSet.has(memory.ownerId) : false;
     case 'unlisted':
       return false;
     case 'private':
@@ -207,10 +207,10 @@ const getAllMemories = asyncHandler(async (req, res) => {
   const targetMap = await memoryTargetModel.getTargetsForMemories(memoryIds);
   const ownerIds = [...new Set(memories.map((memory) => memory.ownerId))];
   const currentUserId = req.user ? req.user.id : null;
-  const friendOwnerSet = await friendsModel.getFriendOwnerSet(ownerIds, currentUserId);
+  const followerOwnerSet = await friendsModel.getFollowingOwnerSet(ownerIds, currentUserId);
 
   const filtered = memories.filter((memory) =>
-    canAccessMemory(memory, currentUserId, friendOwnerSet, targetMap),
+    canAccessMemory(memory, currentUserId, followerOwnerSet, targetMap),
   );
 
   return res.json({ memories: filtered });
@@ -223,7 +223,7 @@ const getUnlockedMemories = asyncHandler(async (req, res) => {
 
 const updateMemoryVisibility = asyncHandler(async (req, res) => {
   const memoryId = Number(req.params.id);
-  const allowed = ['public', 'friends', 'unlisted', 'private'];
+  const allowed = ['public', 'followers', 'unlisted', 'private'];
   const visibility = String(req.body.visibility || '').toLowerCase();
   if (!memoryId) {
     return res.status(400).json({ error: 'Invalid memory id' });
@@ -262,10 +262,10 @@ const getNearbyMemories = asyncHandler(async (req, res) => {
   const targetMap = await memoryTargetModel.getTargetsForMemories(memoryIds);
   const ownerIds = [...new Set(memories.map((memory) => memory.ownerId))];
   const currentUserId = req.user ? req.user.id : null;
-  const friendOwnerSet = await friendsModel.getFriendOwnerSet(ownerIds, currentUserId);
+  const followerOwnerSet = await friendsModel.getFollowingOwnerSet(ownerIds, currentUserId);
 
   const filtered = memories.filter((memory) =>
-    canAccessMemory(memory, currentUserId, friendOwnerSet, targetMap),
+    canAccessMemory(memory, currentUserId, followerOwnerSet, targetMap),
   );
 
   return res.json({ memories: filtered });
@@ -301,10 +301,10 @@ const unlockMemory = asyncHandler(async (req, res) => {
     return res.status(403).json({ error: 'This memory is private' });
   }
 
-  if (memory.visibility === 'friends' && memory.ownerId !== req.user.id) {
-    const isFriend = await friendsModel.isFriend(memory.ownerId, req.user.id);
-    if (!isFriend) {
-      return res.status(403).json({ error: 'Only friends can unlock this memory' });
+  if (memory.visibility === 'followers' && memory.ownerId !== req.user.id) {
+    const isFollower = await friendsModel.isFollowing(req.user.id, memory.ownerId);
+    if (!isFollower) {
+      return res.status(403).json({ error: 'Only followers can unlock this memory' });
     }
   }
 

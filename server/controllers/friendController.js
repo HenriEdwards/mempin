@@ -1,33 +1,36 @@
 const asyncHandler = require('../utils/asyncHandler');
 const friendsModel = require('../models/friendsModel');
 
-const listFriends = asyncHandler(async (req, res) => {
-  const friends = await friendsModel.getFriends(req.user.id);
-  res.json({ friends });
+const listFollowers = asyncHandler(async (req, res) => {
+  const [following, followers] = await Promise.all([
+    friendsModel.getFollowing(req.user.id),
+    friendsModel.getFollowers(req.user.id),
+  ]);
+  res.json({ following, followers });
 });
 
-const addFriend = asyncHandler(async (req, res) => {
+const addFollower = asyncHandler(async (req, res) => {
   if (!req.body.email) {
     return res.status(400).json({ error: 'Email is required' });
   }
-  const friend = await friendsModel.addFriendByEmail(
+  const follower = await friendsModel.followByEmail(
     req.user.id,
     String(req.body.email).trim().toLowerCase(),
   );
-  res.status(201).json({ friend });
+  res.status(201).json({ follower });
 });
 
-const removeFriend = asyncHandler(async (req, res) => {
-  const friendId = Number(req.params.id);
-  if (!friendId) {
-    return res.status(400).json({ error: 'Invalid friend id' });
+const removeFollower = asyncHandler(async (req, res) => {
+  const followingId = Number(req.params.id);
+  if (!followingId) {
+    return res.status(400).json({ error: 'Invalid user id' });
   }
-  await friendsModel.removeFriend(req.user.id, friendId);
+  await friendsModel.unfollow(req.user.id, followingId);
   res.json({ success: true });
 });
 
 module.exports = {
-  listFriends,
-  addFriend,
-  removeFriend,
+  listFollowers,
+  addFollower,
+  removeFollower,
 };

@@ -7,39 +7,43 @@ import Input from '../ui/Input.jsx';
 
 function FriendsPanel({ isOpen, onClose }) {
   const { user } = useAuth();
-  const [friends, setFriends] = useState([]);
+  const [following, setFollowing] = useState([]);
+  const [followers, setFollowers] = useState([]);
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [tab, setTab] = useState('following');
 
-  const fetchFriends = useCallback(() => {
+  const fetchFollowers = useCallback(() => {
     if (!user || !isOpen) {
       if (!user) {
-        setFriends([]);
+        setFollowing([]);
+        setFollowers([]);
       }
       return;
     }
     setLoading(true);
     api
-      .getFriends()
+      .getFollowers()
       .then((data) => {
-        setFriends(data.friends || []);
+        setFollowing(data.following || []);
+        setFollowers(data.followers || []);
         setError('');
       })
-      .catch((err) => setError(err.message || 'Unable to load friends'))
+      .catch((err) => setError(err.message || 'Unable to load followers'))
       .finally(() => setLoading(false));
   }, [isOpen, user]);
 
   useEffect(() => {
-    fetchFriends();
-  }, [fetchFriends]);
+    fetchFollowers();
+  }, [fetchFollowers]);
 
   const handleAddFriend = async () => {
     if (!email) return;
     try {
-      await api.addFriend(email);
+      await api.addFollower(email);
       setEmail('');
-      fetchFriends();
+      fetchFollowers();
     } catch (err) {
       setError(err.message);
     }
@@ -47,44 +51,73 @@ function FriendsPanel({ isOpen, onClose }) {
 
   const handleRemove = async (friendId) => {
     try {
-      await api.removeFriend(friendId);
-      setFriends((prev) => prev.filter((friend) => friend.id !== friendId));
+      await api.removeFollower(friendId);
+      setFollowing((prev) => prev.filter((follower) => follower.id !== friendId));
     } catch (err) {
       setError(err.message);
     }
   };
 
   return (
-    <SlidingPanel isOpen={isOpen} onClose={onClose} title="Friends" width="420px">
+    <SlidingPanel isOpen={isOpen} onClose={onClose} title="Following" width="420px">
       <div className="panel-card friends-page">
         {!user ? (
-          <p>Sign in to manage friends.</p>
+          <p>Sign in to manage connections.</p>
         ) : (
           <>
-            <h2>Friends</h2>
-            <div className="friends-form">
-              <Input
-                placeholder="Friend email"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-              />
-              <Button onClick={handleAddFriend}>Add friend</Button>
+            <h2>Following</h2>
+            <div className="tabs tabs--segmented">
+              <button
+                type="button"
+                className={`tab-button ${tab === 'following' ? 'active' : ''}`}
+                onClick={() => setTab('following')}
+              >
+                Following
+              </button>
+              <button
+                type="button"
+                className={`tab-button ${tab === 'followers' ? 'active' : ''}`}
+                onClick={() => setTab('followers')}
+              >
+                Followers
+              </button>
             </div>
-            {loading && <p>Loading friends...</p>}
+            {tab === 'following' && (
+              <div className="friends-form">
+                <Input
+                  placeholder="User email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                />
+                <Button onClick={handleAddFriend}>Follow</Button>
+              </div>
+            )}
+            {loading && <p>Loading...</p>}
             {error && <p className="error-text">{error}</p>}
             <div className="friends-list">
-              {friends.map((friend) => (
-                <div key={friend.id} className="friends-item">
-                  <div>
-                    <p>{friend.name || friend.email}</p>
-                    <small>{friend.email}</small>
-                  </div>
-                  <Button variant="ghost" onClick={() => handleRemove(friend.id)}>
-                    Remove
-                  </Button>
-                </div>
-              ))}
-              {!friends.length && !loading && <p>No friends yet.</p>}
+              {tab === 'following'
+                ? following.map((followingUser) => (
+                    <div key={followingUser.id} className="friends-item">
+                      <div>
+                        <p>{followingUser.name || followingUser.email}</p>
+                        <small>{followingUser.email}</small>
+                      </div>
+                      <Button variant="ghost" onClick={() => handleRemove(followingUser.id)}>
+                        Unfollow
+                      </Button>
+                    </div>
+                  ))
+                : followers.map((follower) => (
+                    <div key={`f-${follower.id}`} className="friends-item">
+                      <div>
+                        <p>{follower.name || follower.email}</p>
+                        <small>{follower.email}</small>
+                      </div>
+                    </div>
+                  ))}
+              {!((tab === 'following' ? following : followers).length) && !loading && (
+                <p>{tab === 'following' ? 'Not following anyone yet.' : 'No followers yet.'}</p>
+              )}
             </div>
           </>
         )}

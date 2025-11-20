@@ -30,7 +30,7 @@ function App() {
             <Route path="/" element={<MainLayout />}>
               <Route index element={<MapPage />} />
               <Route path="profile" element={<PanelRoute panel="profile" />} />
-              <Route path="friends" element={<PanelRoute panel="friends" />} />
+              <Route path="followers" element={<PanelRoute panel="followers" />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Route>
           </Routes>

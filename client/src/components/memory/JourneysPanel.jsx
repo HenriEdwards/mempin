@@ -66,7 +66,7 @@ function JourneysPanel({
       ? journeyVisibilityMap[selectedJourneyId]
       : new Set(currentMemories.map((memory) => memory.visibility)),
   );
-  const normalizedVisibility = ['public', 'friends', 'unlisted', 'private', 'mixed'].includes(
+  const normalizedVisibility = ['public', 'followers', 'unlisted', 'private', 'mixed'].includes(
     currentVisibility,
   )
     ? currentVisibility
@@ -145,7 +145,7 @@ function JourneysPanel({
                   Visibility varies
                 </option>
                 <option value="public">public</option>
-                <option value="friends">friends</option>
+                <option value="followers">followers</option>
                 <option value="unlisted">unlisted</option>
                 <option value="private">private</option>
               </Select>

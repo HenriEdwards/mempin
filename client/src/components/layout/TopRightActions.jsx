@@ -1,7 +1,8 @@
 import Button from '../ui/Button.jsx';
 import { useUI } from '../../context/UIContext.jsx';
+import Input from '../ui/Input.jsx';
 
-const VISIBILITY_OPTIONS = ['public', 'friends', 'unlisted', 'private'];
+const VISIBILITY_OPTIONS = ['public', 'followers', 'unlisted', 'private'];
 
 function TopRightActions({
   filters,
@@ -12,8 +13,9 @@ function TopRightActions({
   onSelectJourneyType,
   onSelectMedia,
   onToggleVisibilityFilter,
+  onSearchChange,
 }) {
-  const { openMemoriesPanel, openJourneysPanel } = useUI();
+  const { openMemoriesPanel, openJourneysPanel, openFollowersPanel } = useUI();
   const visibilitySet = filters?.visibilities || new Set(VISIBILITY_OPTIONS);
 
   return (
@@ -21,12 +23,15 @@ function TopRightActions({
       <Button variant="ghost" onClick={openMemoriesPanel}>
         Memories
       </Button>
+      <Button variant="ghost" onClick={openFollowersPanel}>
+        Following
+      </Button>
       <Button variant="ghost" onClick={openJourneysPanel}>
         Journeys
       </Button>
       <div className="filter-wrapper">
         <Button variant="ghost" onClick={onToggleFilter}>
-          Filter
+          Filter by
         </Button>
         {isFilterOpen && (
           <div className="filter-card">
@@ -56,6 +61,7 @@ function TopRightActions({
                   ['mine', 'My memories'],
                   ['others', 'Others'],
                   ['unlocked', 'Unlocked'],
+                  ['following', 'Following'],
                 ].map(([value, label]) => (
                   <button
                     key={value}
@@ -113,6 +119,15 @@ function TopRightActions({
                   </button>
                 ))}
               </div>
+            </div>
+
+            <div className="filter-card__row">
+              <div className="filter-card__label">Search</div>
+              <Input
+                placeholder="Search memories or journeys"
+                value={filters?.search || ''}
+                onChange={(event) => onSearchChange?.(event.target.value)}
+              />
             </div>
 
             <div className="filter-card__actions">
