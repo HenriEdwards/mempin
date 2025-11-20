@@ -150,6 +150,45 @@
   top: 1.5rem;
   right: 1.5rem;
   z-index: 1100;
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
+.filter-wrapper {
+  position: relative;
+}
+
+.filter-card {
+  position: absolute;
+  right: 0;
+  margin-top: 0.5rem;
+  width: 320px;
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-border);
+  border-radius: 1rem;
+  box-shadow: var(--shadow-soft);
+  padding: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.filter-card__row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.filter-card__label {
+  font-weight: 600;
+  color: var(--color-text);
+  font-size: 0.95rem;
+}
+
+.filter-card__actions {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .map-panel {

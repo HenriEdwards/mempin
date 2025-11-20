@@ -16,6 +16,8 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { useUI } from '../context/UIContext.jsx';
 import api from '../services/api.js';
 
+const ALL_VISIBILITIES = ['public', 'friends', 'unlisted', 'private'];
+
 function useToast() {
   const [toast, setToast] = useState(null);
 
@@ -53,6 +55,13 @@ function MapPage() {
   const [toast, pushToast] = useToast();
   const [detailMemory, setDetailMemory] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [filters, setFilters] = useState({
+    ownership: 'all',
+    visibilities: new Set(ALL_VISIBILITIES),
+    journey: 'all',
+    media: 'all',
+  });
   const suggestedTags = useMemo(() => {
     const tagSet = new Set();
     placedMemories.forEach((memory) => {
@@ -71,6 +80,10 @@ function MapPage() {
     });
     return map;
   }, [placedMemories]);
+  const foundIds = useMemo(
+    () => new Set(foundMemories.map((memory) => memory.id)),
+    [foundMemories],
+  );
 
   const canPlaceMemory = Boolean(user);
   const canUnlock = Boolean(user);
@@ -98,6 +111,55 @@ function MapPage() {
   useEffect(() => {
     requestLocation();
   }, [requestLocation]);
+
+  const filteredMemories = useMemo(() => {
+    let list = allMemories;
+    if (filters.visibilities.size && filters.visibilities.size < ALL_VISIBILITIES.length) {
+      list = list.filter((memory) => filters.visibilities.has(memory.visibility));
+    }
+    if (filters.ownership === 'mine' && user) {
+      list = list.filter((memory) => memory.ownerId === user.id);
+    } else if (filters.ownership === 'others' && user) {
+      list = list.filter((memory) => memory.ownerId !== user.id);
+    } else if (filters.ownership === 'unlocked') {
+      list = list.filter((memory) => foundIds.has(memory.id));
+    }
+    if (filters.journey === 'journey') {
+      list = list.filter((memory) => Boolean(memory.journeyId));
+    } else if (filters.journey === 'standalone') {
+      list = list.filter((memory) => !memory.journeyId);
+    }
+    if (filters.media === 'withMedia') {
+      list = list.filter((memory) => memory.hasMedia);
+    } else if (filters.media === 'textOnly') {
+      list = list.filter((memory) => !memory.hasMedia);
+    }
+    return list;
+  }, [allMemories, filters, user, foundIds]);
+
+  const toggleVisibilityFilter = useCallback((value) => {
+    setFilters((prev) => {
+      const next = new Set(prev.visibilities);
+      if (next.has(value)) {
+        next.delete(value);
+      } else {
+        next.add(value);
+      }
+      if (next.size === 0) {
+        ALL_VISIBILITIES.forEach((vis) => next.add(vis));
+      }
+      return { ...prev, visibilities: next };
+    });
+  }, []);
+
+  const resetFilters = useCallback(() => {
+    setFilters({
+      ownership: 'all',
+      visibilities: new Set(ALL_VISIBILITIES),
+      journey: 'all',
+      media: 'all',
+    });
+  }, []);
 
   const loadAllMemories = useCallback(async () => {
     try {
@@ -358,7 +420,7 @@ function MapPage() {
       userLocation,
       locationError,
       onRetryLocation: requestLocation,
-      memories: allMemories,
+      memories: filteredMemories,
       onSelectGroup: handleGroupSelection,
       onRequestPlace: () => setPlacingMemory(true),
       canPlaceMemory,
@@ -367,7 +429,7 @@ function MapPage() {
       userLocation,
       locationError,
       requestLocation,
-      allMemories,
+      filteredMemories,
       handleGroupSelection,
       canPlaceMemory,
     ],
@@ -377,7 +439,16 @@ function MapPage() {
     <div className="map-page">
       <div className="map-page__canvas">
         <MapView {...mapProps} />
-        <TopRightActions />
+        <TopRightActions
+          filters={filters}
+          isFilterOpen={isFilterOpen}
+          onToggleFilter={() => setIsFilterOpen((prev) => !prev)}
+          onResetFilters={resetFilters}
+          onSelectOwnership={(value) => setFilters((prev) => ({ ...prev, ownership: value }))}
+          onSelectJourneyType={(value) => setFilters((prev) => ({ ...prev, journey: value }))}
+          onSelectMedia={(value) => setFilters((prev) => ({ ...prev, media: value }))}
+          onToggleVisibilityFilter={toggleVisibilityFilter}
+        />
       </div>
 
       <Modal

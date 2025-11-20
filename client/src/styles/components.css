@@ -33,6 +33,16 @@
   border: 1px solid var(--color-border);
 }
 
+/* Keep top-right map actions aligned and visible */
+.map-actions .btn {
+  min-height: 42px;
+}
+
+.map-actions .btn-ghost {
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
 .form-grid {
   display: flex;
   flex-direction: column;
@@ -111,6 +121,12 @@
 .chip--clickable:hover {
   background: var(--color-primary-soft);
   color: var(--color-primary-text, var(--color-text));
+}
+
+.chip--active {
+  background: var(--color-primary-soft);
+  color: var(--color-text);
+  border: 1px solid var(--color-primary);
 }
 
 .tag-suggestions {
