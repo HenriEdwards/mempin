@@ -49,7 +49,7 @@ function OverlappingMemoryPanel({ group, onSelectMemory, onClose }) {
     <div className="memory-selection">
       <div className="memory-selection__header">
         <div>
-          <h3>Memories at this spot</h3>
+          <h3>Memories in this area</h3>
           <p>
             Showing {filteredMemories.length} of {memories.length} memories
           </p>

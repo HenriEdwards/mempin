@@ -14,7 +14,7 @@ const pool = mysql.createPool({
   port: Number(DB_PORT) || 3306,
   user: DB_USER || 'root',
   password: DB_PASSWORD || 'justlogin',
-  database: DB_NAME || 'memloc',
+  database: DB_NAME || 'mempin',
   waitForConnections: true,
   connectionLimit: Number(DB_POOL_SIZE) || 10,
   namedPlaceholders: true,

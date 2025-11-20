@@ -13,13 +13,25 @@ L.Icon.Default.mergeOptions({
 });
 
 const userMarkerIcon = L.icon({
-  iconUrl: userIconUrl,
+  iconUrl: `data:image/svg+xml,${encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="25" height="41" viewBox="0 0 25 41"><path fill="%2322c55e" stroke="%2315803d" stroke-width="2" d="M12.5 1C6.29 1 1 6.65 1 13.5 1 21.7 12.5 40 12.5 40S24 21.7 24 13.5C24 6.65 18.71 1 12.5 1Z"/><circle cx="12.5" cy="13" r="5" fill="#fff"/></svg>`,
+  )}`,
+  iconRetinaUrl: `data:image/svg+xml,${encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="25" height="41" viewBox="0 0 25 41"><path fill="%2322c55e" stroke="%2315803d" stroke-width="2" d="M12.5 1C6.29 1 1 6.65 1 13.5 1 21.7 12.5 40 12.5 40S24 21.7 24 13.5C24 6.65 18.71 1 12.5 1Z"/><circle cx="12.5" cy="13" r="5" fill="#fff"/></svg>`,
+  )}`,
   shadowUrl: userIconShadow,
   iconSize: [25, 41],
   iconAnchor: [12, 41],
   popupAnchor: [1, -34],
   shadowSize: [41, 41],
 });
+
+const BASE_ZOOM_FOR_SCALING = 16;
+// Lower exponent and base distance to avoid over-merging distant clusters at low zooms
+const ZOOM_SCALE_EXPONENT = 0.6;
+const MERGE_BASE_DISTANCE_METERS = 60;
+const MIN_VISUAL_RADIUS = 60;
+const MAX_VISUAL_RADIUS = 20000;
 
 function formatRelative(value) {
   if (!value) return 'Never';
@@ -51,6 +63,7 @@ function MapView({
   const userLayerRef = useRef(null);
   const memoriesLayerRef = useRef(null);
   const [mapReady, setMapReady] = useState(false);
+  const [zoomLevel, setZoomLevel] = useState(2);
   const groupedMemories = useMemo(() => {
     const groups = new Map();
     memories.forEach((memory) => {
@@ -86,6 +99,7 @@ function MapView({
     memoriesLayerRef.current = L.layerGroup().addTo(mapRef.current);
 
     setMapReady(true);
+    setZoomLevel(mapRef.current.getZoom());
 
     return () => {
       mapRef.current?.remove();
@@ -109,14 +123,102 @@ function MapView({
   }, [userLocation, mapReady]);
 
   useEffect(() => {
+    if (!mapReady || !mapRef.current) return undefined;
+    const map = mapRef.current;
+    const updateZoom = () => setZoomLevel(map.getZoom());
+    map.on('zoomend', updateZoom);
+    // sync state with current zoom immediately
+    updateZoom();
+    return () => map.off('zoomend', updateZoom);
+  }, [mapReady]);
+
+  const displayGroups = useMemo(() => {
+    const map = mapRef.current;
+    const zoom = map?.getZoom() ?? BASE_ZOOM_FOR_SCALING;
+    const scale = Math.pow(2, (BASE_ZOOM_FOR_SCALING - zoom) * ZOOM_SCALE_EXPONENT);
+
+    if (!map) {
+      return groupedMemories.map((group) => ({
+        ...group,
+        radius: (group.memories[0]?.radiusM || 50) * scale,
+      }));
+    }
+
+    const pending = [...groupedMemories];
+    const clusters = [];
+
+    while (pending.length) {
+      const seed = pending.pop();
+      const clusterMembers = [seed];
+      const queue = [seed];
+
+      // Merge nearby points together as zoom level decreases
+      while (queue.length) {
+        const current = queue.pop();
+        for (let i = pending.length - 1; i >= 0; i -= 1) {
+          const candidate = pending[i];
+          const distance = map.distance(
+            [current.latitude, current.longitude],
+            [candidate.latitude, candidate.longitude],
+          );
+          if (distance <= MERGE_BASE_DISTANCE_METERS * scale) {
+            clusterMembers.push(candidate);
+            queue.push(candidate);
+            pending.splice(i, 1);
+          }
+        }
+      }
+
+      const totalMemoryCount = clusterMembers.reduce(
+        (sum, item) => sum + item.memories.length,
+        0,
+      );
+      const latitude =
+        clusterMembers.reduce(
+          (sum, item) => sum + item.latitude * item.memories.length,
+          0,
+        ) / totalMemoryCount;
+      const longitude =
+        clusterMembers.reduce(
+          (sum, item) => sum + item.longitude * item.memories.length,
+          0,
+        ) / totalMemoryCount;
+
+      let radius = 0;
+      clusterMembers.forEach((item) => {
+        const baseRadius = item.memories[0]?.radiusM || 50;
+        const scaledRadius = Math.min(
+          Math.max(baseRadius * scale, MIN_VISUAL_RADIUS),
+          MAX_VISUAL_RADIUS,
+        );
+        const distanceToCenter = map.distance([latitude, longitude], [
+          item.latitude,
+          item.longitude,
+        ]);
+        radius = Math.max(radius, distanceToCenter + scaledRadius);
+      });
+
+      clusters.push({
+        id: clusterMembers.map((item) => item.id).join('|'),
+        latitude,
+        longitude,
+        memories: clusterMembers.flatMap((item) => item.memories),
+        radius: Math.min(Math.max(radius, MIN_VISUAL_RADIUS), MAX_VISUAL_RADIUS),
+      });
+    }
+
+    return clusters;
+  }, [groupedMemories, zoomLevel]);
+
+  useEffect(() => {
     if (!mapReady || !memoriesLayerRef.current) return;
     memoriesLayerRef.current.clearLayers();
-    groupedMemories.forEach((group) => {
+    displayGroups.forEach((group) => {
       const latLng = [group.latitude, group.longitude];
-      const radius = group.memories[0]?.radiusM || 50;
+      const radius = group.radius || group.memories[0]?.radiusM || 50;
       const tooltipText =
         group.memories.length > 1
-          ? `Total memories: ${group.memories.length}`
+          ? `Memories in this area: ${group.memories.length}`
           : `Unlocked ${group.memories[0].timesFound} times\nLast: ${formatRelative(
               group.memories[0].lastUnlockedAt,
             )}`;
@@ -135,7 +237,7 @@ function MapView({
       circle.on('click', () => onSelectGroup?.(group));
       circle.addTo(memoriesLayerRef.current);
     });
-  }, [mapReady, groupedMemories, onSelectGroup]);
+  }, [mapReady, displayGroups, onSelectGroup]);
 
   return (
     <div className="map-panel">

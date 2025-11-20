@@ -1,14 +1,13 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Button from '../ui/Button.jsx';
 import { useTheme } from '../../context/ThemeContext.jsx';
 import { useUI } from '../../context/UIContext.jsx';
+import { useAuth } from '../../context/AuthContext.jsx';
 import logoBlueIcon from '../../assets/logo/logo_blue-1_iconOnly.png';
 import logoBlueFull from '../../assets/logo/logo_blue-1_nobg.png';
 import logoWhiteIcon from '../../assets/logo/logo_white_iconOnly (2).png';
 import logoWhiteFull from '../../assets/logo/logo_white_nobg.png';
-import logoPinkIcon from '../../assets/logo/logo_pink_iconOnly (1).png';
-import logoPinkFull from '../../assets/logo/logo_pink_nobg.png';
 
 const logoByTheme = {
   light: {
@@ -19,10 +18,6 @@ const logoByTheme = {
     icon: logoWhiteIcon,
     full: logoWhiteFull,
   },
-  sunset: {
-    icon: logoPinkIcon,
-    full: logoPinkFull,
-  },
 };
 
 function Sidebar({ collapsed = true }) {
@@ -32,14 +27,28 @@ function Sidebar({ collapsed = true }) {
     openMemoriesPanel,
     openProfilePanel,
     openFriendsPanel,
+    openJourneysPanel,
     closePanel,
   } = useUI();
   const location = useLocation();
   const navigate = useNavigate();
+  const { logout } = useAuth();
   const [hovered, setHovered] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
 
   const isExpanded = !collapsed || hovered;
   const themeLogos = logoByTheme[theme] || logoByTheme.light;
+
+  const handleLogout = useCallback(async () => {
+    setLoggingOut(true);
+    try {
+      await logout();
+      closePanel();
+      navigate('/', { replace: true });
+    } finally {
+      setLoggingOut(false);
+    }
+  }, [logout, closePanel, navigate]);
 
   const menuItems = useMemo(
     () => [
@@ -50,6 +59,13 @@ function Sidebar({ collapsed = true }) {
         icon: '📚',
         action: openMemoriesPanel,
         isActive: activePanel === 'memories',
+      },
+      {
+        key: 'journeys',
+        label: 'Journeys',
+        icon: '🧭',
+        action: openJourneysPanel,
+        isActive: activePanel === 'journeys',
       },
       {
         key: 'profile',
@@ -66,16 +82,27 @@ function Sidebar({ collapsed = true }) {
         isActive: activePanel === 'friends',
       },
       {
-        key: 'about',
-        label: 'About',
-        icon: 'ℹ️',
-        action: () => window.alert('memloc – leave memories around the world.'),
+        key: 'logout',
+        label: loggingOut ? 'Logging out...' : 'Logout',
+        icon: '🚪',
+        action: handleLogout,
+        disabled: loggingOut,
       },
     ],
-    [activePanel, openMemoriesPanel, openProfilePanel, openFriendsPanel],
+    [
+      activePanel,
+      openMemoriesPanel,
+      openProfilePanel,
+      openFriendsPanel,
+      handleLogout,
+      loggingOut,
+    ],
   );
 
   const handleNavigate = (item) => {
+    if (item.disabled) {
+      return;
+    }
     if (item.path) {
       if (item.path === '/') {
         closePanel();
@@ -111,6 +138,7 @@ function Sidebar({ collapsed = true }) {
               key={item.key}
               type="button"
               className={`sidebar__nav-item ${active ? 'active' : ''}`}
+              disabled={item.disabled}
               onClick={() => handleNavigate(item)}
             >
               <span className="sidebar__icon" aria-hidden="true">

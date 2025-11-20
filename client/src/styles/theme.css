@@ -1,38 +1,25 @@
 :root {
-  --color-primary: #6366f1;
-  --color-primary-soft: rgba(99, 102, 241, 0.15);
-  --color-surface: #f6f7fb;
-  --color-surface-alt: #ffffff;
-  --color-surface-muted: #eef1f8;
-  --color-border: #e2e7f1;
-  --color-text: #0f172a;
-  --color-text-muted: #6b7385;
-  --color-accent: #f59e0b;
-  --shadow-soft: 0 4px 12px rgba(15, 15, 15, 0.08);
+  --color-primary: #2563eb;
+  --color-primary-soft: rgba(37, 99, 235, 0.12);
+  --color-surface: #ffffff;
+  --color-surface-alt: #f7f7f7;
+  --color-surface-muted: #f2f4f7;
+  --color-border: #e5e5e5;
+  --color-text: #1a1a1a;
+  --color-text-muted: #6b6b6b;
+  --color-accent: #2563eb;
+  --shadow-soft: 0 6px 20px rgba(0, 0, 0, 0.08);
 }
 
 :root[data-theme='dark'] {
-  --color-primary: #8b5cf6;
-  --color-primary-soft: rgba(139, 92, 246, 0.15);
-  --color-surface: #0f172a;
-  --color-surface-alt: #111b31;
-  --color-surface-muted: #16213f;
-  --color-border: #1e293b;
-  --color-text: #e2e8f0;
-  --color-text-muted: #94a3b8;
-  --color-accent: #facc15;
-  --shadow-soft: 0 4px 12px rgba(0, 0, 0, 0.6);
-}
-
-:root[data-theme='sunset'] {
-  --color-primary: #f97316;
-  --color-primary-soft: rgba(249, 115, 22, 0.18);
-  --color-surface: #fff6ef;
-  --color-surface-alt: #fff1e2;
-  --color-surface-muted: #ffe6d1;
-  --color-border: #ffd8b5;
-  --color-text: #5c2c12;
-  --color-text-muted: #804c2b;
-  --color-accent: #f472b6;
-  --shadow-soft: 0 4px 12px rgba(235, 116, 63, 0.25);
+  --color-primary: #3b82f6;
+  --color-primary-soft: rgba(59, 130, 246, 0.16);
+  --color-surface: #0f0f0f;
+  --color-surface-alt: #1a1a1a;
+  --color-surface-muted: #141414;
+  --color-border: #2a2a2a;
+  --color-text: #f5f5f5;
+  --color-text-muted: #a1a1a1;
+  --color-accent: #3b82f6;
+  --shadow-soft: 0 6px 20px rgba(0, 0, 0, 0.6);
 }

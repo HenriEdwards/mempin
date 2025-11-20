@@ -14,7 +14,7 @@ const VISIBILITY_OPTIONS = [
 
 const RADIUS_MARKS = [20, 50, 100, 200];
 
-function PlaceMemoryForm({ coords, onSubmit, onCancel, loading }) {
+function PlaceMemoryForm({ coords, onSubmit, onCancel, loading, suggestedTags = [] }) {
   const [form, setForm] = useState({
     title: '',
     shortDescription: '',
@@ -49,6 +49,33 @@ function PlaceMemoryForm({ coords, onSubmit, onCancel, loading }) {
 
   const updateField = (name, value) => {
     setForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const currentTagList = () =>
+    form.tags
+      .split(',')
+      .map((tag) => tag.trim())
+      .filter(Boolean);
+
+  const addTag = (tag) => {
+    const existing = currentTagList();
+    if (existing.includes(tag)) return;
+    const next = [...existing, tag];
+    updateField('tags', next.join(','));
+  };
+
+  const handleJourneyChange = (event) => {
+    const value = event.target.value;
+    updateField('journeyId', value);
+    if (!value) {
+      updateField('journeyStep', 1);
+      updateField('newJourneyTitle', '');
+      updateField('newJourneyDescription', '');
+      return;
+    }
+    const journey = journeys.find((item) => String(item.id) === String(value));
+    const nextStep = (Number(journey?.stepCount) || 0) + 1;
+    updateField('journeyStep', nextStep);
   };
 
   const handleImageChange = (event) => {
@@ -96,138 +123,165 @@ function PlaceMemoryForm({ coords, onSubmit, onCancel, loading }) {
   }
 
   return (
-    <form className="form-grid" onSubmit={handleSubmit}>
-      <div className="field with-counter">
+    <form className="form-grid place-memory-form" onSubmit={handleSubmit}>
+      <div className="form-column">
+        <div className="field with-counter">
+          <Input
+            label="Title"
+            required
+            value={form.title}
+            maxLength={100}
+            onChange={(event) => updateField('title', event.target.value)}
+            placeholder="Name your memory"
+          />
+          <span>{form.title.length}/100</span>
+        </div>
+        <div className="field with-counter">
+          <Input
+            label="Short description"
+            value={form.shortDescription}
+            maxLength={120}
+            onChange={(event) => updateField('shortDescription', event.target.value)}
+            placeholder="One-line memory teaser"
+          />
+          <span>{form.shortDescription.length}/120</span>
+        </div>
+        <div className="field with-counter">
+          <TextArea
+            label="Story"
+            value={form.body}
+            maxLength={800}
+            placeholder="Tell the story..."
+            onChange={(event) => updateField('body', event.target.value)}
+          />
+          <span>{form.body.length}/800</span>
+        </div>
         <Input
-          label="Title"
-          required
-          value={form.title}
-          maxLength={100}
-          onChange={(event) => updateField('title', event.target.value)}
-          placeholder="Name your memory"
+          label="Tags"
+          value={form.tags}
+          placeholder="love,travel,park"
+          onChange={(event) => updateField('tags', event.target.value)}
         />
-        <span>{form.title.length}/100</span>
-      </div>
-      <div className="field with-counter">
+        {suggestedTags.length > 0 && (
+          <div className="tag-suggestions">
+            <span className="chip-label">Recent tags:</span>
+            <div className="chip-group">
+              {suggestedTags.map((tag) => (
+                <button
+                  key={tag}
+                  type="button"
+                  className="chip chip--clickable"
+                  onClick={() => addTag(tag)}
+                >
+                  {tag}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         <Input
-          label="Short description"
-          value={form.shortDescription}
-          maxLength={120}
-          onChange={(event) => updateField('shortDescription', event.target.value)}
-          placeholder="One-line memory teaser"
+          label="Targeted recipients (emails)"
+          value={form.targetEmails}
+          placeholder="friend@example.com, another@example.com"
+          onChange={(event) => updateField('targetEmails', event.target.value)}
         />
-        <span>{form.shortDescription.length}/120</span>
       </div>
-      <div className="field with-counter">
-        <TextArea
-          label="Story"
-          value={form.body}
-          maxLength={800}
-          placeholder="Tell the story..."
-          onChange={(event) => updateField('body', event.target.value)}
-        />
-        <span>{form.body.length}/800</span>
-      </div>
-      <Input
-        label="Tags"
-        value={form.tags}
-        placeholder="love,travel,park"
-        onChange={(event) => updateField('tags', event.target.value)}
-      />
-      <Input
-        label="Targeted recipients (emails)"
-        value={form.targetEmails}
-        placeholder="friend@example.com, another@example.com"
-        onChange={(event) => updateField('targetEmails', event.target.value)}
-      />
-      <Select
-        label="Visibility"
-        value={form.visibility}
-        onChange={(event) => updateField('visibility', event.target.value)}
-      >
-        {VISIBILITY_OPTIONS.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </Select>
-      <div className="field">
-        <label>Journey</label>
+
+      <div className="form-column">
         <Select
-          value={form.journeyId}
-          onChange={(event) => updateField('journeyId', event.target.value)}
+          label="Visibility"
+          value={form.visibility}
+          onChange={(event) => updateField('visibility', event.target.value)}
         >
-          <option value="">No journey</option>
-          {journeys.map((journey) => (
-            <option key={journey.id} value={journey.id}>
-              {journey.title} ({journey.stepCount} steps)
+          {VISIBILITY_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
             </option>
           ))}
         </Select>
-        <Input
-          label="New journey title"
-          value={form.newJourneyTitle}
-          onChange={(event) => updateField('newJourneyTitle', event.target.value)}
-          placeholder="Leave blank to use existing"
-        />
-        <TextArea
-          label="New journey description"
-          value={form.newJourneyDescription}
-          onChange={(event) => updateField('newJourneyDescription', event.target.value)}
-        />
-        {(form.journeyId || form.newJourneyTitle) && (
-          <Input
-            label="Journey step"
-            type="number"
-            min={1}
-            value={form.journeyStep}
-            onChange={(event) => updateField('journeyStep', Number(event.target.value))}
+        <div className="field">
+          <label title="How close someone must be to unlock">Radius</label>
+          <input
+            className="slider"
+            type="range"
+            min={20}
+            max={200}
+            step={5}
+            value={form.radiusM}
+            onChange={(event) => updateField('radiusM', Number(event.target.value))}
           />
-        )}
-      </div>
-      <div className="field">
-        <label title="How close someone must be to unlock">Radius</label>
-        <input
-          className="slider"
-          type="range"
-          min={20}
-          max={200}
-          step={5}
-          value={form.radiusM}
-          onChange={(event) => updateField('radiusM', Number(event.target.value))}
-        />
-        <div className="slider-marks">
-          {RADIUS_MARKS.map((mark) => (
-            <span key={mark}>{mark}m</span>
-          ))}
-        </div>
-        <span className="chip">{form.radiusM} meters</span>
-      </div>
-      <div className="field">
-        <label>Upload images</label>
-        <input type="file" accept="image/*" multiple onChange={handleImageChange} />
-        <div className="media-preview">
-          {imagePreviews.map((preview) => (
-            <img key={preview.id} src={preview.url} alt="" />
-          ))}
-        </div>
-      </div>
-      <div className="field">
-        <label>Upload audio</label>
-        <input
-          type="file"
-          accept="audio/*"
-          multiple
-          onChange={(event) => setAudio(Array.from(event.target.files || []))}
-        />
-        {audio.length > 0 && (
-          <ul className="media-files">
-            {audio.map((file) => (
-              <li key={`${file.name}-${file.size}`}>{file.name}</li>
+          <div className="slider-marks">
+            {RADIUS_MARKS.map((mark) => (
+              <span key={mark}>{mark}m</span>
             ))}
-          </ul>
-        )}
+          </div>
+          <span className="chip">{form.radiusM} meters</span>
+        </div>
+        <div className="field">
+          <label>Journey</label>
+          <Select
+            value={form.journeyId}
+            onChange={handleJourneyChange}
+          >
+            <option value="">No journey</option>
+            {journeys.map((journey) => (
+              <option key={journey.id} value={journey.id}>
+                {journey.title} ({journey.stepCount} steps)
+              </option>
+            ))}
+          </Select>
+          <Input
+            label="New journey title"
+            value={form.newJourneyTitle}
+            onChange={(event) => updateField('newJourneyTitle', event.target.value)}
+            placeholder="Leave blank to use existing"
+            disabled={Boolean(form.journeyId)}
+          />
+          <TextArea
+            label="New journey description"
+            value={form.newJourneyDescription}
+            onChange={(event) => updateField('newJourneyDescription', event.target.value)}
+            disabled={Boolean(form.journeyId)}
+          />
+          {(form.journeyId || form.newJourneyTitle) && (
+            <Input
+              label="Journey step"
+              type="number"
+              min={1}
+              value={form.journeyStep}
+              onChange={(event) =>
+                updateField('journeyStep', Math.max(1, Number(event.target.value)))
+              }
+            />
+          )}
+        </div>
+        <div className="field">
+          <label>Upload images</label>
+          <input type="file" accept="image/*" multiple onChange={handleImageChange} />
+          <div className="media-preview">
+            {imagePreviews.map((preview) => (
+              <img key={preview.id} src={preview.url} alt="" />
+            ))}
+          </div>
+        </div>
+        <div className="field">
+          <label>Upload audio</label>
+          <input
+            type="file"
+            accept="audio/*"
+            multiple
+            onChange={(event) => setAudio(Array.from(event.target.files || []))}
+          />
+          {audio.length > 0 && (
+            <ul className="media-files">
+              {audio.map((file) => (
+                <li key={`${file.name}-${file.size}`}>{file.name}</li>
+              ))}
+            </ul>
+          )}
+        </div>
       </div>
+
       <div className="form-actions">
         <Button type="button" variant="ghost" onClick={onCancel}>
           Cancel

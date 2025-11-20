@@ -20,6 +20,7 @@ const api = {
   API_BASE_URL,
   getCurrentUser: () => request('/api/users/me'),
   getUserStats: () => request('/api/users/me/stats'),
+  getAllMemories: () => request('/api/memories/all'),
   logout: () =>
     request('/auth/logout', {
       method: 'POST',
@@ -30,6 +31,12 @@ const api = {
     ),
   getPlacedMemories: () => request('/api/memories/placed'),
   getUnlockedMemories: () => request('/api/memories/unlocked'),
+  updateMemoryVisibility: (id, visibility) =>
+    request(`/api/memories/${id}/visibility`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ visibility }),
+    }),
   getMemoryDetail: (id) => request(`/api/memories/${id}`),
   createMemory: (formData) =>
     fetch(`${API_BASE_URL}/api/memories`, {
@@ -61,6 +68,13 @@ const api = {
       method: 'DELETE',
     }),
   getJourneys: () => request('/api/journeys'),
+  getJourneyMemories: (journeyId) => request(`/api/journeys/${journeyId}/memories`),
+  updateJourneyVisibility: (journeyId, visibility) =>
+    request(`/api/journeys/${journeyId}/visibility`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ visibility }),
+    }),
   createJourney: (payload) =>
     request('/api/journeys', {
       method: 'POST',

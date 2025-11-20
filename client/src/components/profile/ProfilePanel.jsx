@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import SlidingPanel from '../layout/SlidingPanel.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
 import api from '../../services/api.js';
+import Button from '../ui/Button.jsx';
 
 function ProfilePanel({ isOpen, onClose }) {
   const { user } = useAuth();
@@ -31,7 +32,14 @@ function ProfilePanel({ isOpen, onClose }) {
     <SlidingPanel isOpen={isOpen} onClose={onClose} title="Profile" width="420px">
       <div className="panel-card profile-page">
         {!user ? (
-          <p>Please sign in to view your profile.</p>
+          <Button
+            variant="primary"
+            onClick={() => {
+              window.location.href = `${api.API_BASE_URL}/auth/google`;
+            }}
+          >
+            Sign in with Google
+          </Button>
         ) : (
           <>
             <h2>Profile</h2>

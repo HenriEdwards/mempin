@@ -201,9 +201,46 @@ const getPlacedMemories = asyncHandler(async (req, res) => {
   return res.json({ memories });
 });
 
+const getAllMemories = asyncHandler(async (req, res) => {
+  const memories = await memoryModel.getAllActiveMemories();
+  const memoryIds = memories.map((memory) => memory.id);
+  const targetMap = await memoryTargetModel.getTargetsForMemories(memoryIds);
+  const ownerIds = [...new Set(memories.map((memory) => memory.ownerId))];
+  const currentUserId = req.user ? req.user.id : null;
+  const friendOwnerSet = await friendsModel.getFriendOwnerSet(ownerIds, currentUserId);
+
+  const filtered = memories.filter((memory) =>
+    canAccessMemory(memory, currentUserId, friendOwnerSet, targetMap),
+  );
+
+  return res.json({ memories: filtered });
+});
+
 const getUnlockedMemories = asyncHandler(async (req, res) => {
   const memories = await memoryModel.getUnlockedMemories(req.user.id);
   return res.json({ memories });
+});
+
+const updateMemoryVisibility = asyncHandler(async (req, res) => {
+  const memoryId = Number(req.params.id);
+  const allowed = ['public', 'friends', 'unlisted', 'private'];
+  const visibility = String(req.body.visibility || '').toLowerCase();
+  if (!memoryId) {
+    return res.status(400).json({ error: 'Invalid memory id' });
+  }
+  if (!allowed.includes(visibility)) {
+    return res.status(400).json({ error: 'Invalid visibility value' });
+  }
+  const memory = await memoryModel.getMemoryById(memoryId);
+  if (!memory || !memory.isActive) {
+    return res.status(404).json({ error: 'Memory not found' });
+  }
+  if (memory.ownerId !== req.user.id) {
+    return res.status(403).json({ error: 'Not allowed to update this memory' });
+  }
+
+  const updated = await memoryModel.updateMemoryVisibility(memoryId, visibility);
+  return res.json({ memory: updated });
 });
 
 const getNearbyMemories = asyncHandler(async (req, res) => {
@@ -350,8 +387,10 @@ const getMemoryDetails = asyncHandler(async (req, res) => {
 module.exports = {
   createMemory,
   getPlacedMemories,
+  getAllMemories,
   getUnlockedMemories,
   getNearbyMemories,
   unlockMemory,
   getMemoryDetails,
+  updateMemoryVisibility,
 };

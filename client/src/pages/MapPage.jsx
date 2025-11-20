@@ -8,6 +8,7 @@ import Toast from '../components/ui/Toast.jsx';
 import OverlappingMemoryPanel from '../components/memory/OverlappingMemoryPanel.jsx';
 import MemoryDetailsModal from '../components/memory/MemoryDetailsModal.jsx';
 import MemoriesPanel from '../components/memory/MemoriesPanel.jsx';
+import JourneysPanel from '../components/memory/JourneysPanel.jsx';
 import TopRightActions from '../components/layout/TopRightActions.jsx';
 import ProfilePanel from '../components/profile/ProfilePanel.jsx';
 import FriendsPanel from '../components/friends/FriendsPanel.jsx';
@@ -36,9 +37,12 @@ function MapPage() {
   const { activePanel, closePanel } = useUI();
   const [userLocation, setUserLocation] = useState(null);
   const [locationError, setLocationError] = useState('');
-  const [nearbyMemories, setNearbyMemories] = useState([]);
+  const [allMemories, setAllMemories] = useState([]);
   const [placedMemories, setPlacedMemories] = useState([]);
   const [foundMemories, setFoundMemories] = useState([]);
+  const [journeys, setJourneys] = useState([]);
+  const [journeyMemories, setJourneyMemories] = useState({});
+  const [journeyLoadingId, setJourneyLoadingId] = useState(null);
   const [placingMemory, setPlacingMemory] = useState(false);
   const [savingMemory, setSavingMemory] = useState(false);
   const [selectedMemory, setSelectedMemory] = useState(null);
@@ -49,6 +53,24 @@ function MapPage() {
   const [toast, pushToast] = useToast();
   const [detailMemory, setDetailMemory] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const suggestedTags = useMemo(() => {
+    const tagSet = new Set();
+    placedMemories.forEach((memory) => {
+      (memory.tags || []).forEach((tag) => tag && tagSet.add(tag));
+    });
+    return Array.from(tagSet);
+  }, [placedMemories]);
+  const journeyVisibilityMap = useMemo(() => {
+    const map = {};
+    placedMemories.forEach((memory) => {
+      if (!memory.journeyId) return;
+      if (!map[memory.journeyId]) {
+        map[memory.journeyId] = new Set();
+      }
+      map[memory.journeyId].add(memory.visibility);
+    });
+    return map;
+  }, [placedMemories]);
 
   const canPlaceMemory = Boolean(user);
   const canUnlock = Boolean(user);
@@ -77,16 +99,33 @@ function MapPage() {
     requestLocation();
   }, [requestLocation]);
 
+  const loadAllMemories = useCallback(async () => {
+    try {
+      const data = await api.getAllMemories();
+      setAllMemories(data.memories || []);
+    } catch (error) {
+      pushToast(error.message || 'Unable to load memories', 'error');
+    }
+  }, [pushToast]);
+
   useEffect(() => {
-    if (!userLocation) return;
-    api
-      .getNearbyMemories({
-        latitude: userLocation.latitude,
-        longitude: userLocation.longitude,
-      })
-      .then((data) => setNearbyMemories(data.memories || []))
-      .catch(() => pushToast('Unable to load nearby memories', 'error'));
-  }, [userLocation, pushToast]);
+    if (status === 'loading') return;
+    loadAllMemories();
+  }, [status, user, loadAllMemories]);
+
+  const loadJourneys = useCallback(async () => {
+    if (!user) {
+      setJourneys([]);
+      setJourneyMemories({});
+      return;
+    }
+    try {
+      const data = await api.getJourneys();
+      setJourneys(data.journeys || []);
+    } catch (error) {
+      pushToast(error.message || 'Unable to load journeys', 'error');
+    }
+  }, [user, pushToast]);
 
   const loadPersonalMemories = useCallback(async () => {
     if (!user) {
@@ -108,7 +147,8 @@ function MapPage() {
 
   useEffect(() => {
     loadPersonalMemories();
-  }, [loadPersonalMemories]);
+    loadJourneys();
+  }, [loadPersonalMemories, loadJourneys]);
 
   useEffect(() => {
     const shouldPrompt = status === 'ready' && !user && !isGuest;
@@ -121,17 +161,107 @@ function MapPage() {
       const response = await api.createMemory(formData);
       pushToast('Memory placed successfully');
       setPlacingMemory(false);
-      setNearbyMemories((prev) => {
+      setAllMemories((prev) => {
         const filtered = prev.filter((memory) => memory.id !== response.memory.id);
         return [...filtered, response.memory];
       });
       loadPersonalMemories();
+      loadJourneys();
+      loadAllMemories();
     } catch (error) {
       pushToast(error.message, 'error');
     } finally {
       setSavingMemory(false);
     }
   };
+
+  const fetchJourneyMemories = useCallback(
+    async (journeyId) => {
+      if (!journeyId) return;
+      setJourneyLoadingId(journeyId);
+      try {
+        const data = await api.getJourneyMemories(journeyId);
+        const updatedMemories = data.memories || [];
+        setJourneyMemories((prev) => ({
+          ...prev,
+          [journeyId]: { memories: updatedMemories },
+        }));
+        if (updatedMemories.length) {
+          setPlacedMemories((prev) =>
+            prev.map((mem) => {
+              const newer = updatedMemories.find((item) => item.id === mem.id);
+              return newer ? { ...mem, ...newer } : mem;
+            }),
+          );
+          setAllMemories((prev) =>
+            prev.map((mem) => {
+              const newer = updatedMemories.find((item) => item.id === mem.id);
+              return newer ? { ...mem, ...newer } : mem;
+            }),
+          );
+        }
+      } catch (error) {
+        pushToast(error.message || 'Unable to load journey', 'error');
+      } finally {
+        setJourneyLoadingId(null);
+      }
+    },
+    [pushToast],
+  );
+
+  const handleVisibilityUpdate = useCallback(
+    async (memory, visibility) => {
+      try {
+        const response = await api.updateMemoryVisibility(memory.id, visibility);
+        const updated = response.memory;
+        setPlacedMemories((prev) =>
+          prev.map((item) => (item.id === updated.id ? { ...item, ...updated } : item)),
+        );
+        setAllMemories((prev) =>
+          prev.map((item) => (item.id === updated.id ? { ...item, ...updated } : item)),
+        );
+        pushToast('Visibility updated');
+      } catch (error) {
+        pushToast(error.message || 'Unable to update visibility', 'error');
+        throw error;
+      }
+    },
+    [pushToast],
+  );
+
+  const handleJourneyVisibilityUpdate = useCallback(
+    async (journeyId, visibility) => {
+      try {
+        const response = await api.updateJourneyVisibility(journeyId, visibility);
+        const updatedMemories = response.memories || [];
+        setJourneyMemories((prev) => ({
+          ...prev,
+          [journeyId]: { memories: updatedMemories },
+        }));
+        if (updatedMemories.length) {
+          setPlacedMemories((prev) =>
+            prev.map((mem) => {
+              if (mem.journeyId !== journeyId) return mem;
+              const newer = updatedMemories.find((item) => item.id === mem.id);
+              return newer ? { ...mem, ...newer } : { ...mem, visibility };
+            }),
+          );
+          setAllMemories((prev) =>
+            prev.map((mem) => {
+              if (mem.journeyId !== journeyId) return mem;
+              const newer = updatedMemories.find((item) => item.id === mem.id);
+              return newer ? { ...mem, ...newer } : { ...mem, visibility };
+            }),
+          );
+        }
+        pushToast('Journey visibility updated');
+      } catch (error) {
+        pushToast(error.message || 'Unable to update journey', 'error');
+        throw error;
+      }
+    },
+    [pushToast],
+  );
 
   const fetchMemoryDetails = useCallback(
     async (memoryId) => {
@@ -162,13 +292,7 @@ function MapPage() {
       setSelectedMemory(null);
       setDetailMemory(response.memory);
       loadPersonalMemories();
-      api
-        .getNearbyMemories({
-          latitude: userLocation.latitude,
-          longitude: userLocation.longitude,
-        })
-        .then((data) => setNearbyMemories(data.memories || []))
-        .catch(() => {});
+      await loadAllMemories().catch(() => {});
       pushToast('Memory unlocked');
     } catch (error) {
       setUnlockError(error.message);
@@ -234,7 +358,7 @@ function MapPage() {
       userLocation,
       locationError,
       onRetryLocation: requestLocation,
-      memories: nearbyMemories,
+      memories: allMemories,
       onSelectGroup: handleGroupSelection,
       onRequestPlace: () => setPlacingMemory(true),
       canPlaceMemory,
@@ -243,7 +367,7 @@ function MapPage() {
       userLocation,
       locationError,
       requestLocation,
-      nearbyMemories,
+      allMemories,
       handleGroupSelection,
       canPlaceMemory,
     ],
@@ -256,7 +380,11 @@ function MapPage() {
         <TopRightActions />
       </div>
 
-      <Modal isOpen={placingMemory} onClose={() => setPlacingMemory(false)}>
+      <Modal
+        isOpen={placingMemory}
+        onClose={() => setPlacingMemory(false)}
+        className="modal-content--wide"
+      >
         <h3>Place a memory</h3>
         <p className="memory-card__meta">
           Drop a note that others can unlock once they reach this spot.
@@ -264,6 +392,7 @@ function MapPage() {
         <PlaceMemoryForm
           coords={userLocation}
           loading={savingMemory}
+          suggestedTags={suggestedTags}
           onSubmit={handleCreateMemory}
           onCancel={() => setPlacingMemory(false)}
         />
@@ -274,6 +403,18 @@ function MapPage() {
         onClose={closePanel}
         placedMemories={placedMemories}
         foundMemories={foundMemories}
+        onSelectMemory={handleMemoryFromPanel}
+        onChangeVisibility={handleVisibilityUpdate}
+      />
+      <JourneysPanel
+        isOpen={activePanel === 'journeys'}
+        onClose={closePanel}
+        journeys={journeys}
+        journeyVisibilityMap={journeyVisibilityMap}
+        journeyMemories={journeyMemories}
+        loadingJourneyId={journeyLoadingId}
+        onSelectJourney={fetchJourneyMemories}
+        onChangeJourneyVisibility={handleJourneyVisibilityUpdate}
         onSelectMemory={handleMemoryFromPanel}
       />
       <ProfilePanel isOpen={activePanel === 'profile'} onClose={closePanel} />
@@ -306,7 +447,7 @@ function MapPage() {
       />
 
       <Modal isOpen={guestPromptOpen} onClose={() => {}}>
-        <h3>Join memloc</h3>
+        <h3>Join mempin</h3>
         <p>
           Sign in to place and unlock memories at real-world locations. You can
           also continue as a guest to browse nearby markers.

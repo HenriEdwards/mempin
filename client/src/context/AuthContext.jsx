@@ -17,7 +17,7 @@ const AuthContext = createContext({
   refresh: () => {},
 });
 
-const GUEST_KEY = 'memloc_guest_mode';
+const GUEST_KEY = 'mempin_guest_mode';
 
 function loadGuestPreference() {
   if (typeof window === 'undefined') {

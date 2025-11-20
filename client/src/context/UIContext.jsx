@@ -5,12 +5,14 @@ const UIContext = createContext({
   isMemoriesPanelOpen: false,
   isProfilePanelOpen: false,
   isFriendsPanelOpen: false,
+  isJourneysPanelOpen: false,
   openPanel: () => {},
   closePanel: () => {},
   openMemoriesPanel: () => {},
   closeMemoriesPanel: () => {},
   openProfilePanel: () => {},
   openFriendsPanel: () => {},
+  openJourneysPanel: () => {},
 });
 
 export function UIProvider({ children }) {
@@ -21,6 +23,7 @@ export function UIProvider({ children }) {
   const openMemoriesPanel = useCallback(() => openPanel('memories'), [openPanel]);
   const openProfilePanel = useCallback(() => openPanel('profile'), [openPanel]);
   const openFriendsPanel = useCallback(() => openPanel('friends'), [openPanel]);
+  const openJourneysPanel = useCallback(() => openPanel('journeys'), [openPanel]);
 
   const value = useMemo(
     () => ({
@@ -28,12 +31,14 @@ export function UIProvider({ children }) {
       isMemoriesPanelOpen: activePanel === 'memories',
       isProfilePanelOpen: activePanel === 'profile',
       isFriendsPanelOpen: activePanel === 'friends',
+      isJourneysPanelOpen: activePanel === 'journeys',
       openPanel,
       closePanel,
       openMemoriesPanel,
       closeMemoriesPanel: closePanel,
       openProfilePanel,
       openFriendsPanel,
+      openJourneysPanel,
     }),
     [
       activePanel,
@@ -42,6 +47,7 @@ export function UIProvider({ children }) {
       openMemoriesPanel,
       openProfilePanel,
       openFriendsPanel,
+      openJourneysPanel,
     ],
   );
 

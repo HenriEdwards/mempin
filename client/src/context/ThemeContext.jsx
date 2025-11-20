@@ -5,15 +5,16 @@ const ThemeContext = createContext({
   cycleTheme: () => {},
 });
 
-const THEME_KEY = 'memloc_theme';
-const THEMES = ['light', 'dark', 'sunset'];
+const THEME_KEY = 'mempin_theme';
+const THEMES = ['light', 'dark'];
 
 export function ThemeProvider({ children }) {
   const [theme, setTheme] = useState(() => {
     if (typeof window === 'undefined') {
       return 'light';
     }
-    return window.localStorage.getItem(THEME_KEY) || 'light';
+    const stored = window.localStorage.getItem(THEME_KEY);
+    return stored && THEMES.includes(stored) ? stored : 'light';
   });
 
   useEffect(() => {

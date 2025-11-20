@@ -214,6 +214,37 @@ async function getNearbyMemories({ latitude, longitude, radiusMeters }) {
     );
 }
 
+async function getAllActiveMemories() {
+  const rows = await db.query(
+    `SELECT
+      m.*,
+      COALESCE(mu.count_unlocks, 0) AS times_found,
+      COALESCE(mu.last_unlocked_at, NULL) AS last_unlocked_at,
+      COALESCE(ma.asset_count, 0) AS has_media,
+      COALESCE(js.step_count, NULL) AS journey_step_count
+     FROM memories m
+     LEFT JOIN (
+       SELECT memory_id, COUNT(*) AS count_unlocks, MAX(unlocked_at) AS last_unlocked_at
+       FROM memory_unlocks
+       GROUP BY memory_id
+     ) mu ON mu.memory_id = m.id
+     LEFT JOIN (
+       SELECT memory_id, COUNT(*) AS asset_count
+       FROM memory_assets
+       GROUP BY memory_id
+     ) ma ON ma.memory_id = m.id
+     LEFT JOIN (
+       SELECT journey_id, COUNT(*) AS step_count
+       FROM memories
+       WHERE journey_id IS NOT NULL
+       GROUP BY journey_id
+     ) js ON js.journey_id = m.journey_id
+     WHERE m.is_active = 1`,
+  );
+
+  return rows.map(mapMemory);
+}
+
 async function getMemoryByJourneyStep(journeyId, journeyStep) {
   if (!journeyId || !journeyStep) {
     return null;
@@ -229,11 +260,71 @@ async function getMemoryByJourneyStep(journeyId, journeyStep) {
   return rows[0] || null;
 }
 
+async function getMemoriesByJourney(journeyId, ownerId) {
+  const rows = await db.query(
+    `SELECT
+      m.*,
+      COALESCE(mu.count_unlocks, 0) AS times_found,
+      COALESCE(mu.last_unlocked_at, NULL) AS last_unlocked_at,
+      COALESCE(ma.asset_count, 0) AS has_media,
+      COALESCE(js.step_count, NULL) AS journey_step_count
+     FROM memories m
+     LEFT JOIN (
+       SELECT memory_id, COUNT(*) AS count_unlocks, MAX(unlocked_at) AS last_unlocked_at
+       FROM memory_unlocks
+       GROUP BY memory_id
+     ) mu ON mu.memory_id = m.id
+     LEFT JOIN (
+       SELECT memory_id, COUNT(*) AS asset_count
+       FROM memory_assets
+       GROUP BY memory_id
+     ) ma ON ma.memory_id = m.id
+     LEFT JOIN (
+       SELECT journey_id, COUNT(*) AS step_count
+       FROM memories
+       WHERE journey_id IS NOT NULL
+       GROUP BY journey_id
+     ) js ON js.journey_id = m.journey_id
+     WHERE m.journey_id = ?
+       AND m.owner_id = ?
+     ORDER BY m.journey_step ASC`,
+    [journeyId, ownerId],
+  );
+
+  return rows.map(mapMemory);
+}
+
+async function updateMemoriesVisibilityForJourney({ journeyId, ownerId, visibility }) {
+  await db.query(
+    `UPDATE memories
+     SET visibility = ?
+     WHERE journey_id = ?
+       AND owner_id = ?`,
+    [visibility, journeyId, ownerId],
+  );
+  return getMemoriesByJourney(journeyId, ownerId);
+}
+
+async function updateMemoryVisibility(id, visibility) {
+  await db.query(
+    `UPDATE memories
+     SET visibility = ?
+     WHERE id = ?
+     LIMIT 1`,
+    [visibility, id],
+  );
+  return getMemoryById(id);
+}
+
 module.exports = {
   createMemory,
   getMemoryById,
   getPlacedMemories,
   getUnlockedMemories,
+  getAllActiveMemories,
   getNearbyMemories,
   getMemoryByJourneyStep,
+  updateMemoryVisibility,
+  getMemoriesByJourney,
+  updateMemoriesVisibilityForJourney,
 };

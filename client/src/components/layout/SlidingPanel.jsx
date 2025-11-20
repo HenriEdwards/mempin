@@ -9,9 +9,6 @@ function SlidingPanel({ isOpen, onClose, title, children, width = '400px' }) {
       <div className="sliding-panel__content" style={{ width }}>
         <div className="sliding-panel__header">
           <h3>{title}</h3>
-          <button type="button" onClick={onClose}>
-            ✕
-          </button>
         </div>
         <div className="sliding-panel__body">{children}</div>
       </div>

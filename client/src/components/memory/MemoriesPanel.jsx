@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import SlidingPanel from '../layout/SlidingPanel.jsx';
 import Input from '../ui/Input.jsx';
+import Select from '../ui/Select.jsx';
 
 function formatRelative(value) {
   if (!value) return 'Never';
@@ -23,9 +24,11 @@ function MemoriesPanel({
   placedMemories,
   foundMemories,
   onSelectMemory,
+  onChangeVisibility,
 }) {
   const [tab, setTab] = useState('placed');
   const [search, setSearch] = useState('');
+  const [updatingId, setUpdatingId] = useState(null);
 
   const { items, total } = useMemo(() => {
     const source = tab === 'placed' ? placedMemories : foundMemories;
@@ -37,6 +40,16 @@ function MemoriesPanel({
     });
     return { items: filtered, total: source.length };
   }, [tab, placedMemories, foundMemories, search]);
+
+  const handleVisibilityChange = async (memory, visibility) => {
+    if (!onChangeVisibility) return;
+    setUpdatingId(memory.id);
+    try {
+      await onChangeVisibility(memory, visibility);
+    } finally {
+      setUpdatingId(null);
+    }
+  };
 
   return (
     <SlidingPanel isOpen={isOpen} onClose={onClose} title="Memories" width="420px">
@@ -71,19 +84,34 @@ function MemoriesPanel({
               key={memory.id}
               type="button"
               className="memories-panel__item"
-              onClick={() => onSelectMemory(memory)}
-            >
-              <div>
-                <div className="memories-panel__item-header">
-                  <h4>{memory.title}</h4>
+            onClick={() => onSelectMemory(memory)}
+          >
+            <div>
+              <div className="memories-panel__item-header">
+                <h4>{memory.title}</h4>
+                {tab === 'placed' && onChangeVisibility ? (
+                  <Select
+                    value={memory.visibility}
+                    onChange={(event) =>
+                      handleVisibilityChange(memory, event.target.value)
+                    }
+                    disabled={updatingId === memory.id}
+                  >
+                    <option value="public">public</option>
+                    <option value="friends">friends</option>
+                    <option value="unlisted">unlisted</option>
+                    <option value="private">private</option>
+                  </Select>
+                ) : (
                   <span className={`pill visibility-${memory.visibility}`}>
                     {memory.visibility}
                   </span>
-                </div>
-                <p className="memories-panel__preview">
-                  {memory.shortDescription ||
-                    memory.body?.slice(0, 80) ||
-                    'No preview available'}
+                )}
+              </div>
+              <p className="memories-panel__preview">
+                {memory.shortDescription ||
+                  memory.body?.slice(0, 80) ||
+                  'No preview available'}
                 </p>
               </div>
               <div className="memories-panel__meta">
