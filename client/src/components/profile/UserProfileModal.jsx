@@ -37,7 +37,7 @@ function UserProfileModal({
   };
 
   const showFollowButton = Boolean(onFollow || onUnfollow);
-  const followLabel = isFollowing ? 'Unfollow' : 'Follow';
+  const followLabel = isFollowing ? 'Unfollow' : '';
 
   return (
     <Modal isOpen={Boolean(handle)} onClose={onClose}>

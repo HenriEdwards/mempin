@@ -28,10 +28,42 @@ async function getFollowing(userId) {
   }));
 }
 
+async function getFollowingForUser(targetUserId, viewerUserId = null) {
+  const rows = await db.query(
+    `SELECT uf.following_id AS followingId, u.name, u.email, u.handle, u.avatar_url AS avatarUrl,
+            u.created_at AS createdAt, COALESCE(mem_counts.memory_count, 0) AS memoryCount,
+            CASE WHEN vf.following_id IS NULL THEN 0 ELSE 1 END AS isFollowedByViewer
+     FROM user_followers uf
+     INNER JOIN users u ON u.id = uf.following_id
+     LEFT JOIN (
+       SELECT owner_id, COUNT(*) AS memory_count
+       FROM memories
+       GROUP BY owner_id
+     ) mem_counts ON mem_counts.owner_id = u.id
+     LEFT JOIN user_followers vf
+       ON vf.follower_id = ? AND vf.following_id = uf.following_id
+     WHERE uf.follower_id = ?
+     ORDER BY u.name ASC`,
+    [viewerUserId || 0, targetUserId],
+  );
+
+  return rows.map((row) => ({
+    id: row.followingId,
+    name: row.name,
+    email: row.email,
+    handle: row.handle,
+    avatarUrl: row.avatarUrl,
+    createdAt: row.createdAt,
+    memoryCount: row.memoryCount,
+    isFollowing: Boolean(row.isFollowedByViewer),
+  }));
+}
+
 async function getFollowers(userId) {
   const rows = await db.query(
     `SELECT uf.follower_id AS followerId, u.name, u.email, u.handle, u.avatar_url AS avatarUrl,
-            u.created_at AS createdAt, COALESCE(mem_counts.memory_count, 0) AS memoryCount
+            u.created_at AS createdAt, COALESCE(mem_counts.memory_count, 0) AS memoryCount,
+            CASE WHEN cf.following_id IS NULL THEN 0 ELSE 1 END AS isFollowing
      FROM user_followers uf
      INNER JOIN users u ON u.id = uf.follower_id
      LEFT JOIN (
@@ -39,9 +71,11 @@ async function getFollowers(userId) {
        FROM memories
        GROUP BY owner_id
      ) mem_counts ON mem_counts.owner_id = u.id
+     LEFT JOIN user_followers cf
+       ON cf.follower_id = ? AND cf.following_id = uf.follower_id
      WHERE uf.following_id = ?
      ORDER BY u.name ASC`,
-    [userId],
+    [userId, userId],
   );
 
   return rows.map((row) => ({
@@ -52,6 +86,38 @@ async function getFollowers(userId) {
     avatarUrl: row.avatarUrl,
     createdAt: row.createdAt,
     memoryCount: row.memoryCount,
+    isFollowing: Boolean(row.isFollowing),
+  }));
+}
+
+async function getFollowersForUser(targetUserId, viewerUserId = null) {
+  const rows = await db.query(
+    `SELECT uf.follower_id AS followerId, u.name, u.email, u.handle, u.avatar_url AS avatarUrl,
+            u.created_at AS createdAt, COALESCE(mem_counts.memory_count, 0) AS memoryCount,
+            CASE WHEN vf.following_id IS NULL THEN 0 ELSE 1 END AS isFollowedByViewer
+     FROM user_followers uf
+     INNER JOIN users u ON u.id = uf.follower_id
+     LEFT JOIN (
+       SELECT owner_id, COUNT(*) AS memory_count
+       FROM memories
+       GROUP BY owner_id
+     ) mem_counts ON mem_counts.owner_id = u.id
+     LEFT JOIN user_followers vf
+       ON vf.follower_id = ? AND vf.following_id = uf.follower_id
+     WHERE uf.following_id = ?
+     ORDER BY u.name ASC`,
+    [viewerUserId || 0, targetUserId],
+  );
+
+  return rows.map((row) => ({
+    id: row.followerId,
+    name: row.name,
+    email: row.email,
+    handle: row.handle,
+    avatarUrl: row.avatarUrl,
+    createdAt: row.createdAt,
+    memoryCount: row.memoryCount,
+    isFollowing: Boolean(row.isFollowedByViewer),
   }));
 }
 
@@ -131,13 +197,19 @@ async function isFollowing(followerId, followingId) {
 async function getFollowSuggestions(userId, limit = 10) {
   const rows = await db.query(
     `SELECT u.id, u.name, u.email, u.handle, u.avatar_url AS avatarUrl, u.created_at AS createdAt,
-            COALESCE(follower_counts.count_followers, 0) AS followerCount
+            COALESCE(follower_counts.count_followers, 0) AS followerCount,
+            COALESCE(mem_counts.memory_count, 0) AS memoryCount
      FROM users u
      LEFT JOIN (
        SELECT following_id, COUNT(*) AS count_followers
        FROM user_followers
        GROUP BY following_id
      ) follower_counts ON follower_counts.following_id = u.id
+     LEFT JOIN (
+       SELECT owner_id, COUNT(*) AS memory_count
+       FROM memories
+       GROUP BY owner_id
+     ) mem_counts ON mem_counts.owner_id = u.id
      WHERE u.id != ?
        AND u.id NOT IN (
          SELECT following_id
@@ -155,7 +227,9 @@ async function getFollowSuggestions(userId, limit = 10) {
 
 module.exports = {
   getFollowing,
+  getFollowingForUser,
   getFollowers,
+  getFollowersForUser,
   followByHandle,
   unfollow,
   getFollowingOwnerSet,

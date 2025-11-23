@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Input from '../ui/Input.jsx';
 import TextArea from '../ui/TextArea.jsx';
 import Select from '../ui/Select.jsx';
@@ -32,6 +32,7 @@ function PlaceMemoryForm({ coords, onSubmit, onCancel, loading, suggestedTags = 
   const [images, setImages] = useState([]);
   const [imagePreviews, setImagePreviews] = useState([]);
   const [audio, setAudio] = useState([]);
+  const mediaInputRef = useRef(null);
 
   useEffect(() => {
     api
@@ -78,14 +79,32 @@ function PlaceMemoryForm({ coords, onSubmit, onCancel, loading, suggestedTags = 
     updateField('journeyStep', nextStep);
   };
 
-  const handleImageChange = (event) => {
-    const files = Array.from(event.target.files || []);
-    setImages(files);
-    const previews = files.map((file) => ({
+  const handleMediaFiles = (files = []) => {
+    if (!files.length) return;
+    const imagesOnly = files.filter((file) => file.type.startsWith('image/'));
+    const audioOnly = files.filter((file) => file.type.startsWith('audio/'));
+
+    setImages((prev) => [...prev, ...imagesOnly]);
+    const newPreviews = imagesOnly.map((file) => ({
       id: `${file.name}-${file.lastModified}`,
       url: URL.createObjectURL(file),
     }));
-    setImagePreviews(previews);
+    setImagePreviews((prev) => [...prev, ...newPreviews]);
+    setAudio((prev) => [...prev, ...audioOnly]);
+  };
+
+  const handleMediaInputChange = (event) => {
+    const files = Array.from(event.target.files || []);
+    handleMediaFiles(files);
+    if (event.target.value) {
+      event.target.value = '';
+    }
+  };
+
+  const handleDrop = (event) => {
+    event.preventDefault();
+    const files = Array.from(event.dataTransfer.files || []);
+    handleMediaFiles(files);
   };
 
   const handleSubmit = (event) => {
@@ -255,29 +274,36 @@ function PlaceMemoryForm({ coords, onSubmit, onCancel, loading, suggestedTags = 
             />
           )}
         </div>
-        <div className="field">
-          <label>Upload images</label>
-          <input type="file" accept="image/*" multiple onChange={handleImageChange} />
-          <div className="media-preview">
-            {imagePreviews.map((preview) => (
-              <img key={preview.id} src={preview.url} alt="" />
-            ))}
-          </div>
-        </div>
-        <div className="field">
-          <label>Upload audio</label>
+        <div
+          className="media-dropzone"
+          onDragOver={(event) => event.preventDefault()}
+          onDrop={handleDrop}
+        >
+          <p className="media-dropzone__text">Drag images or audio here</p>
+          <Button variant="ghost" onClick={() => mediaInputRef.current?.click()}>
+            Upload
+          </Button>
           <input
+            ref={mediaInputRef}
             type="file"
-            accept="audio/*"
+            accept="image/*,audio/*"
             multiple
-            onChange={(event) => setAudio(Array.from(event.target.files || []))}
+            onChange={handleMediaInputChange}
+            style={{ display: 'none' }}
           />
-          {audio.length > 0 && (
-            <ul className="media-files">
-              {audio.map((file) => (
-                <li key={`${file.name}-${file.size}`}>{file.name}</li>
+          {(imagePreviews.length > 0 || audio.length > 0) && (
+            <div className="media-preview">
+              {imagePreviews.map((preview) => (
+                <img key={preview.id} src={preview.url} alt="" />
               ))}
-            </ul>
+              {audio.length > 0 && (
+                <ul className="media-files">
+                  {audio.map((file) => (
+                    <li key={`${file.name}-${file.size}`}>{file.name}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
           )}
         </div>
       </div>

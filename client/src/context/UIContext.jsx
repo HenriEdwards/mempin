@@ -8,6 +8,8 @@ const UIContext = createContext({
   isFollowersPanelOpen: false,
   isJourneysPanelOpen: false,
   isUserProfilePanelOpen: false,
+  isUserMemoriesPanelOpen: false,
+  isUserJourneysPanelOpen: false,
   userProfileHandle: '',
   userProfileActions: {
     isFollowing: false,
@@ -22,10 +24,13 @@ const UIContext = createContext({
   openFollowersPanel: () => {},
   openJourneysPanel: () => {},
   openUserProfilePanel: () => {},
+  openUserMemoriesPanel: () => {},
+  openUserJourneysPanel: () => {},
 });
 
 export function UIProvider({ children }) {
   const [activePanel, setActivePanel] = useState(null);
+  const [previousPanel, setPreviousPanel] = useState(null);
   const [userProfileHandle, setUserProfileHandle] = useState('');
   const [userProfileActions, setUserProfileActions] = useState({
     isFollowing: false,
@@ -33,9 +38,16 @@ export function UIProvider({ children }) {
     onUnfollow: null,
   });
 
-  const openPanel = useCallback((panel) => setActivePanel(panel), []);
+  const openPanel = useCallback((panel) => {
+    setActivePanel((current) => {
+      if (panel === current) return current;
+      setPreviousPanel(current);
+      return panel;
+    });
+  }, []);
   const closePanel = useCallback(() => {
     setActivePanel(null);
+    setPreviousPanel(null);
     setUserProfileHandle('');
     setUserProfileActions({
       isFollowing: false,
@@ -43,10 +55,27 @@ export function UIProvider({ children }) {
       onUnfollow: null,
     });
   }, []);
+  const goBackFromUserProfile = useCallback(() => {
+    setActivePanel((current) => {
+      if (current === 'userProfile' && previousPanel) {
+        return previousPanel;
+      }
+      return null;
+    });
+    setPreviousPanel(null);
+    setUserProfileHandle('');
+    setUserProfileActions({
+      isFollowing: false,
+      onFollow: null,
+      onUnfollow: null,
+    });
+  }, [previousPanel]);
   const openMemoriesPanel = useCallback(() => openPanel('memories'), [openPanel]);
   const openProfilePanel = useCallback(() => openPanel('profile'), [openPanel]);
   const openFollowersPanel = useCallback(() => openPanel('followers'), [openPanel]);
   const openJourneysPanel = useCallback(() => openPanel('journeys'), [openPanel]);
+  const openUserMemoriesPanel = useCallback(() => openPanel('userMemories'), [openPanel]);
+  const openUserJourneysPanel = useCallback(() => openPanel('userJourneys'), [openPanel]);
   const openUserProfilePanel = useCallback(
     (handle, actions = {}) => {
       const normalized = normalizeHandle(handle);
@@ -70,21 +99,27 @@ export function UIProvider({ children }) {
       isFollowersPanelOpen: activePanel === 'followers',
       isJourneysPanelOpen: activePanel === 'journeys',
       isUserProfilePanelOpen: activePanel === 'userProfile',
+      isUserMemoriesPanelOpen: activePanel === 'userMemories',
+      isUserJourneysPanelOpen: activePanel === 'userJourneys',
       userProfileHandle,
       userProfileActions,
       openPanel,
       closePanel,
+      goBackFromUserProfile,
       openMemoriesPanel,
       closeMemoriesPanel: closePanel,
       openProfilePanel,
       openFollowersPanel,
       openJourneysPanel,
       openUserProfilePanel,
+      openUserMemoriesPanel,
+      openUserJourneysPanel,
     }),
     [
       activePanel,
       openPanel,
       closePanel,
+      goBackFromUserProfile,
       openMemoriesPanel,
       openProfilePanel,
       openFollowersPanel,

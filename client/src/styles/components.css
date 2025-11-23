@@ -5,11 +5,12 @@
   font-size: 0.95rem;
   font-weight: 500;
   cursor: pointer;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  transition: transform 0.15s ease;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 0.35rem;
+  height: 35px;
 }
 
 .btn:disabled {
@@ -20,10 +21,10 @@
 .btn-primary {
   background: var(--color-primary);
   color: white;
-  box-shadow: none;
 }
 
 .btn-ghost {
+  min-width: 75px;
   background: transparent;
   color: var(--color-text);
 }
@@ -36,10 +37,16 @@
 /* Keep top-right map actions aligned and visible */
 .map-actions .btn {
   min-height: 42px;
+  min-width: 75px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  border-radius: 0.9rem;
+  padding: 0.45rem 0.65rem;
 }
 
 .map-actions .btn-ghost {
-  border: 1px solid var(--color-border);
+    min-width: 75px;
+  border-color: var(--color-border);
   background: var(--color-surface);
 }
 
@@ -84,10 +91,11 @@
   border-radius: 0.85rem;
   border: 1px solid var(--color-border);
   padding: 0.85rem 1rem;
-  background: var(--color-surface);
+  background: var(--color-surface-muted);
   color: var(--color-text);
   font-size: 0.95rem;
   width: 100%;
+  
 }
 
 .textarea {
@@ -97,6 +105,7 @@
 
 .slider {
   padding: 0.4rem;
+
 }
 
 .chip-group {

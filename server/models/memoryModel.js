@@ -8,6 +8,8 @@ function mapMemory(row = {}) {
         .map((tag) => tag.trim())
         .filter(Boolean)
     : [];
+  const imageCount = Number(row.image_count ?? row.imageCount ?? 0) || 0;
+  const audioCount = Number(row.audio_count ?? row.audioCount ?? 0) || 0;
   return {
     id: row.id,
     ownerId: row.owner_id,
@@ -30,6 +32,8 @@ function mapMemory(row = {}) {
     updatedAt: row.updated_at,
     timesFound: row.times_found || 0,
     hasMedia: row.has_media ? row.has_media > 0 : false,
+    imageCount,
+    audioCount,
     lastUnlockedAt: row.last_unlocked_at || null,
   };
 }
@@ -79,8 +83,10 @@ async function getMemoryById(id) {
       COALESCE(mu.count_unlocks, 0) AS times_found,
       COALESCE(mu.last_unlocked_at, NULL) AS last_unlocked_at,
       COALESCE(ma.asset_count, 0) AS has_media,
+      COALESCE(mac.image_count, 0) AS image_count,
+      COALESCE(mac.audio_count, 0) AS audio_count,
       COALESCE(js.step_count, NULL) AS journey_step_count
-    FROM memories m
+     FROM memories m
     INNER JOIN users u ON u.id = m.owner_id
     LEFT JOIN (
       SELECT memory_id, COUNT(*) AS count_unlocks, MAX(unlocked_at) AS last_unlocked_at
@@ -92,14 +98,22 @@ async function getMemoryById(id) {
       FROM memory_assets
       GROUP BY memory_id
     ) ma ON ma.memory_id = m.id
-    LEFT JOIN (
-      SELECT journey_id, COUNT(*) AS step_count
-      FROM memories
-      WHERE journey_id IS NOT NULL
-      GROUP BY journey_id
-    ) js ON js.journey_id = m.journey_id
-    WHERE m.id = ?
-    LIMIT 1`,
+     LEFT JOIN (
+       SELECT journey_id, COUNT(*) AS step_count
+       FROM memories
+       WHERE journey_id IS NOT NULL
+       GROUP BY journey_id
+     ) js ON js.journey_id = m.journey_id
+     LEFT JOIN (
+       SELECT
+         memory_id,
+         SUM(CASE WHEN type = 'image' THEN 1 ELSE 0 END) AS image_count,
+         SUM(CASE WHEN type = 'audio' THEN 1 ELSE 0 END) AS audio_count
+       FROM memory_assets
+       GROUP BY memory_id
+     ) mac ON mac.memory_id = m.id
+     WHERE m.id = ?
+     LIMIT 1`,
     [id],
   );
 
@@ -116,6 +130,8 @@ async function getPlacedMemories(ownerId) {
       COALESCE(mu.count_unlocks, 0) AS times_found,
       COALESCE(mu.last_unlocked_at, NULL) AS last_unlocked_at,
       COALESCE(ma.asset_count, 0) AS has_media,
+      COALESCE(mac.image_count, 0) AS image_count,
+      COALESCE(mac.audio_count, 0) AS audio_count,
       COALESCE(js.step_count, NULL) AS journey_step_count
      FROM memories m
      INNER JOIN users u ON u.id = m.owner_id
@@ -129,6 +145,14 @@ async function getPlacedMemories(ownerId) {
        FROM memory_assets
        GROUP BY memory_id
      ) ma ON ma.memory_id = m.id
+     LEFT JOIN (
+       SELECT
+         memory_id,
+         SUM(CASE WHEN type = 'image' THEN 1 ELSE 0 END) AS image_count,
+         SUM(CASE WHEN type = 'audio' THEN 1 ELSE 0 END) AS audio_count
+       FROM memory_assets
+       GROUP BY memory_id
+     ) mac ON mac.memory_id = m.id
      LEFT JOIN (
        SELECT journey_id, COUNT(*) AS step_count
        FROM memories
@@ -195,6 +219,8 @@ async function getNearbyMemories({ latitude, longitude, radiusMeters }) {
       COALESCE(mu.count_unlocks, 0) AS times_found,
       COALESCE(mu.last_unlocked_at, NULL) AS last_unlocked_at,
       COALESCE(ma.asset_count, 0) AS has_media,
+      COALESCE(mac.image_count, 0) AS image_count,
+      COALESCE(mac.audio_count, 0) AS audio_count,
       COALESCE(js.step_count, NULL) AS journey_step_count
      FROM memories m
      INNER JOIN users u ON u.id = m.owner_id
@@ -208,6 +234,14 @@ async function getNearbyMemories({ latitude, longitude, radiusMeters }) {
        FROM memory_assets
        GROUP BY memory_id
      ) ma ON ma.memory_id = m.id
+     LEFT JOIN (
+       SELECT
+         memory_id,
+         SUM(CASE WHEN type = 'image' THEN 1 ELSE 0 END) AS image_count,
+         SUM(CASE WHEN type = 'audio' THEN 1 ELSE 0 END) AS audio_count
+       FROM memory_assets
+       GROUP BY memory_id
+     ) mac ON mac.memory_id = m.id
      LEFT JOIN (
        SELECT journey_id, COUNT(*) AS step_count
        FROM memories
@@ -243,6 +277,8 @@ async function getAllActiveMemories() {
       COALESCE(mu.count_unlocks, 0) AS times_found,
       COALESCE(mu.last_unlocked_at, NULL) AS last_unlocked_at,
       COALESCE(ma.asset_count, 0) AS has_media,
+      COALESCE(mac.image_count, 0) AS image_count,
+      COALESCE(mac.audio_count, 0) AS audio_count,
       COALESCE(js.step_count, NULL) AS journey_step_count
      FROM memories m
      INNER JOIN users u ON u.id = m.owner_id
@@ -256,6 +292,14 @@ async function getAllActiveMemories() {
        FROM memory_assets
        GROUP BY memory_id
      ) ma ON ma.memory_id = m.id
+     LEFT JOIN (
+       SELECT
+         memory_id,
+         SUM(CASE WHEN type = 'image' THEN 1 ELSE 0 END) AS image_count,
+         SUM(CASE WHEN type = 'audio' THEN 1 ELSE 0 END) AS audio_count
+       FROM memory_assets
+       GROUP BY memory_id
+     ) mac ON mac.memory_id = m.id
      LEFT JOIN (
        SELECT journey_id, COUNT(*) AS step_count
        FROM memories
@@ -293,6 +337,8 @@ async function getMemoriesByJourney(journeyId, ownerId) {
       COALESCE(mu.count_unlocks, 0) AS times_found,
       COALESCE(mu.last_unlocked_at, NULL) AS last_unlocked_at,
       COALESCE(ma.asset_count, 0) AS has_media,
+      COALESCE(mac.image_count, 0) AS image_count,
+      COALESCE(mac.audio_count, 0) AS audio_count,
       COALESCE(js.step_count, NULL) AS journey_step_count
      FROM memories m
      INNER JOIN users u ON u.id = m.owner_id
@@ -306,6 +352,14 @@ async function getMemoriesByJourney(journeyId, ownerId) {
        FROM memory_assets
        GROUP BY memory_id
      ) ma ON ma.memory_id = m.id
+     LEFT JOIN (
+       SELECT
+         memory_id,
+         SUM(CASE WHEN type = 'image' THEN 1 ELSE 0 END) AS image_count,
+         SUM(CASE WHEN type = 'audio' THEN 1 ELSE 0 END) AS audio_count
+       FROM memory_assets
+       GROUP BY memory_id
+     ) mac ON mac.memory_id = m.id
      LEFT JOIN (
        SELECT journey_id, COUNT(*) AS step_count
        FROM memories

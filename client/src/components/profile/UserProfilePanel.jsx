@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import SlidingPanel from '../layout/SlidingPanel.jsx';
 import Button from '../ui/Button.jsx';
 import api from '../../services/api.js';
+import ProfileTabsContent from './ProfileTabsContent.jsx';
 
 function UserProfilePanel({
   isOpen,
@@ -12,6 +13,13 @@ function UserProfilePanel({
   onViewMemories,
   onViewJourneys,
   onClose,
+  placedMemories = [],
+  foundMemories = [],
+  journeys = [],
+  onSelectMemory,
+  onOpenProfile,
+  journeyMemories = {},
+  journeyVisibilityMap = {},
 }) {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -35,6 +43,9 @@ function UserProfilePanel({
 
   const showFollowButton = Boolean(onFollow || onUnfollow);
   const followLabel = localFollowing ? 'Unfollow' : 'Follow';
+  const placedCount = profile?.stats?.placedCount ?? 0;
+  const foundCount = profile?.stats?.foundCount ?? 0;
+  const followerCount = profile?.stats?.followerCount ?? 0;
 
   const handleFollowClick = async () => {
     if (!handle) return;
@@ -48,45 +59,38 @@ function UserProfilePanel({
   };
 
   return (
-    <SlidingPanel isOpen={isOpen} onClose={onClose} title="Profile" width="480px">
-      <div className="panel-card profile-page profile-page--public">
+    <SlidingPanel isOpen={isOpen} onClose={onClose} title="" hideHeader width="480px">
+      <div className="profile-page profile-page--public">
         {loading && <p>Loading profile...</p>}
         {error && <p className="error-text">{error}</p>}
         {profile && (
           <>
-            <h2>{profile.name || `@${profile.handle}`}</h2>
-            <p className="muted">{profile.handle ? `@${profile.handle}` : ''}</p>
-            {profile.email && <p className="muted-text">{profile.email}</p>}
-            <div className="profile-stats">
-              <div>
-                <span>Followers</span>
-                <strong>{profile.stats?.followerCount ?? 0}</strong>
-              </div>
-              <div>
-                <span>Following</span>
-                <strong>{profile.stats?.followingCount ?? 0}</strong>
-              </div>
-              <div>
-                <span>Memories placed</span>
-                <strong>{profile.stats?.placedCount ?? 0}</strong>
-              </div>
-            </div>
-            <div className="profile-actions profile-actions--inline">
-              {showFollowButton && (
-                <Button variant="primary" onClick={handleFollowClick}>
-                  {followLabel}
-                </Button>
-              )}
-              <Button variant="outline" onClick={() => onViewMemories?.(profile)}>
-                View memories
-              </Button>
-              <Button variant="outline" onClick={() => onViewJourneys?.(profile)}>
-                View journeys
-              </Button>
-            </div>
+            {/* <h2>{profile.name || `@${profile.handle}`}</h2> */}
+            <ProfileTabsContent
+              isOpen={isOpen}
+              profileHandle={profile?.handle || ''}
+              stats={profile?.stats || {}}
+              placedMemories={placedMemories}
+              journeys={journeys}
+              journeyMemories={journeyMemories}
+              journeyVisibilityMap={journeyVisibilityMap}
+              onSelectMemory={onSelectMemory}
+              onOpenProfile={onOpenProfile}
+              followingTabProps={{ hideSuggestions: true, profileHandle: profile?.handle || '' }}
+            />
           </>
         )}
       </div>
+      <button
+        type="button"
+        className="profile-back-button"
+        onClick={onClose}
+        aria-label="Back to map"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#e3e3e3">
+          <path d="M400-80 0-480l400-400 71 71-329 329 329 329-71 71Z" />
+        </svg>
+      </button>
     </SlidingPanel>
   );
 }

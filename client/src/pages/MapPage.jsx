@@ -8,14 +8,12 @@ import Input from '../components/ui/Input.jsx';
 import Toast from '../components/ui/Toast.jsx';
 import OverlappingMemoryPanel from '../components/memory/OverlappingMemoryPanel.jsx';
 import MemoryDetailsModal from '../components/memory/MemoryDetailsModal.jsx';
-import MemoriesPanel from '../components/memory/MemoriesPanel.jsx';
-import JourneysPanel from '../components/memory/JourneysPanel.jsx';
 import TopRightActions from '../components/layout/TopRightActions.jsx';
 import ProfilePanel from '../components/profile/ProfilePanel.jsx';
-import FriendsPanel from '../components/friends/FriendsPanel.jsx';
 import UserProfilePanel from '../components/profile/UserProfilePanel.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useUI } from '../context/UIContext.jsx';
+import { useTheme } from '../context/ThemeContext.jsx';
 import api from '../services/api.js';
 import { getHandleError, normalizeHandle } from '../utils/handles.js';
 
@@ -39,8 +37,16 @@ function useToast() {
 
 function MapPage() {
   const { user, status, isGuest, loginAsGuest, refresh } = useAuth();
-  const { activePanel, closePanel, openUserProfilePanel, userProfileHandle, userProfileActions } =
-    useUI();
+  const {
+    activePanel,
+    closePanel,
+    goBackFromUserProfile,
+    openUserProfilePanel,
+    openProfilePanel,
+    userProfileHandle,
+    userProfileActions,
+  } = useUI();
+  const { theme, cycleTheme } = useTheme();
   const [userLocation, setUserLocation] = useState(null);
   const [locationError, setLocationError] = useState('');
   const [allMemories, setAllMemories] = useState([]);
@@ -48,7 +54,6 @@ function MapPage() {
   const [foundMemories, setFoundMemories] = useState([]);
   const [journeys, setJourneys] = useState([]);
   const [journeyMemories, setJourneyMemories] = useState({});
-  const [journeyLoadingId, setJourneyLoadingId] = useState(null);
   const [followingIds, setFollowingIds] = useState(new Set());
   const [placingMemory, setPlacingMemory] = useState(false);
   const [savingMemory, setSavingMemory] = useState(false);
@@ -74,6 +79,8 @@ function MapPage() {
   const [savingHandle, setSavingHandle] = useState(false);
   const [focusBounds, setFocusBounds] = useState(null);
   const [journeyPaths, setJourneyPaths] = useState([]);
+  const [userMemoriesTarget, setUserMemoriesTarget] = useState(null);
+  const [userJourneysTarget, setUserJourneysTarget] = useState(null);
   const suggestedTags = useMemo(() => {
     const tagSet = new Set();
     placedMemories.forEach((memory) => {
@@ -96,6 +103,8 @@ function MapPage() {
     () => new Set(foundMemories.map((memory) => memory.id)),
     [foundMemories],
   );
+
+  const normalizedUserHandle = useMemo(() => normalizeHandle(user?.handle || ''), [user]);
 
   const canPlaceMemory = Boolean(user);
   const canUnlock = Boolean(user);
@@ -348,147 +357,70 @@ function MapPage() {
     }
   };
 
-  const fetchJourneyMemories = useCallback(
-    async (journeyId) => {
-      if (!journeyId) return;
-      setJourneyLoadingId(journeyId);
-      try {
-        const data = await api.getJourneyMemories(journeyId);
-        const updatedMemories = data.memories || [];
-        setJourneyMemories((prev) => ({
-          ...prev,
-          [journeyId]: { memories: updatedMemories },
-        }));
-        if (updatedMemories.length) {
-          setPlacedMemories((prev) =>
-            prev.map((mem) => {
-              const newer = updatedMemories.find((item) => item.id === mem.id);
-              return newer ? { ...mem, ...newer } : mem;
-            }),
-          );
-          setAllMemories((prev) =>
-            prev.map((mem) => {
-              const newer = updatedMemories.find((item) => item.id === mem.id);
-              return newer ? { ...mem, ...newer } : mem;
-            }),
-          );
+  const userMemories = useMemo(() => {
+    if (!userMemoriesTarget?.handle) {
+      return { placed: [], found: [] };
+    }
+    const target = userMemoriesTarget.handle;
+    const placed = allMemories.filter(
+      (memory) => normalizeHandle(memory.ownerHandle) === target,
+    );
+    const foundList = foundMemories.filter(
+      (memory) => normalizeHandle(memory.ownerHandle) === target,
+    );
+    return { placed, found: foundList };
+  }, [allMemories, foundMemories, userMemoriesTarget]);
+
+  useEffect(() => {
+    if (activePanel !== 'userProfile') {
+      setUserMemoriesTarget(null);
+    }
+  }, [activePanel]);
+
+  const userJourneysData = useMemo(() => {
+    if (!userJourneysTarget?.handle) {
+      return { journeys: [], memMap: {}, visibilityMap: {} };
+    }
+    const target = userJourneysTarget.handle;
+    const grouped = new Map();
+    allMemories
+      .filter((memory) => memory.journeyId && normalizeHandle(memory.ownerHandle) === target)
+      .forEach((memory) => {
+        if (!grouped.has(memory.journeyId)) {
+          grouped.set(memory.journeyId, []);
         }
-      } catch (error) {
-        pushToast(error.message || 'Unable to load journey', 'error');
-      } finally {
-        setJourneyLoadingId(null);
-      }
-    },
-    [pushToast],
-  );
+        grouped.get(memory.journeyId).push(memory);
+      });
 
-  const viewMemoriesForHandle = useCallback(
-    (handleValue) => {
-      const normalized = normalizeHandle(handleValue);
-      if (!normalized) return;
-      setFilters((prev) => ({ ...prev, search: `@${normalized}` }));
-      setIsFilterOpen(true);
+    const journeysList = Array.from(grouped.entries()).map(([journeyId, mems]) => {
+      const sorted = [...mems].sort((a, b) => (a.journeyStep || 0) - (b.journeyStep || 0));
+      const first = sorted[0] || {};
+      return {
+        id: journeyId,
+        title: first.journeyTitle || 'Journey',
+        description: first.journeyDescription || '',
+        stepCount: sorted.length,
+        memories: sorted,
+      };
+    });
 
-      const targetMemories = allMemories.filter(
-        (memory) => normalizeHandle(memory.ownerHandle) === normalized,
+    const memMap = {};
+    const visibilityMap = {};
+    journeysList.forEach((journey) => {
+      memMap[journey.id] = { memories: journey.memories };
+      visibilityMap[journey.id] = new Set(
+        journey.memories.map((memory) => memory.visibility).filter(Boolean),
       );
-      if (targetMemories.length) {
-        const lats = targetMemories.map((mem) => Number(mem.latitude));
-        const lngs = targetMemories.map((mem) => Number(mem.longitude));
-        setFocusBounds({
-          minLat: Math.min(...lats),
-          maxLat: Math.max(...lats),
-          minLng: Math.min(...lngs),
-          maxLng: Math.max(...lngs),
-        });
-      } else {
-        setFocusBounds(null);
-      }
-      closePanel();
-    },
-    [allMemories, closePanel],
-  );
+    });
 
-  const viewJourneysForHandle = useCallback(
-    (handleValue) => {
-      const normalized = normalizeHandle(handleValue);
-      if (!normalized) return;
-      setFilters((prev) => ({ ...prev, search: `@${normalized}`, journey: 'journey' }));
-      setIsFilterOpen(true);
+    return { journeys: journeysList, memMap, visibilityMap };
+  }, [allMemories, userJourneysTarget]);
 
-      const targetMemories = allMemories.filter(
-        (memory) => memory.journeyId && normalizeHandle(memory.ownerHandle) === normalized,
-      );
-      if (targetMemories.length) {
-        const lats = targetMemories.map((mem) => Number(mem.latitude));
-        const lngs = targetMemories.map((mem) => Number(mem.longitude));
-        setFocusBounds({
-          minLat: Math.min(...lats),
-          maxLat: Math.max(...lats),
-          minLng: Math.min(...lngs),
-          maxLng: Math.max(...lngs),
-        });
-      } else {
-        setFocusBounds(null);
-      }
-      closePanel();
-    },
-    [allMemories, closePanel],
-  );
-
-  const handleVisibilityUpdate = useCallback(
-    async (memory, visibility) => {
-      try {
-        const response = await api.updateMemoryVisibility(memory.id, visibility);
-        const updated = response.memory;
-        setPlacedMemories((prev) =>
-          prev.map((item) => (item.id === updated.id ? { ...item, ...updated } : item)),
-        );
-        setAllMemories((prev) =>
-          prev.map((item) => (item.id === updated.id ? { ...item, ...updated } : item)),
-        );
-        pushToast('Visibility updated');
-      } catch (error) {
-        pushToast(error.message || 'Unable to update visibility', 'error');
-        throw error;
-      }
-    },
-    [pushToast],
-  );
-
-  const handleJourneyVisibilityUpdate = useCallback(
-    async (journeyId, visibility) => {
-      try {
-        const response = await api.updateJourneyVisibility(journeyId, visibility);
-        const updatedMemories = response.memories || [];
-        setJourneyMemories((prev) => ({
-          ...prev,
-          [journeyId]: { memories: updatedMemories },
-        }));
-        if (updatedMemories.length) {
-          setPlacedMemories((prev) =>
-            prev.map((mem) => {
-              if (mem.journeyId !== journeyId) return mem;
-              const newer = updatedMemories.find((item) => item.id === mem.id);
-              return newer ? { ...mem, ...newer } : { ...mem, visibility };
-            }),
-          );
-          setAllMemories((prev) =>
-            prev.map((mem) => {
-              if (mem.journeyId !== journeyId) return mem;
-              const newer = updatedMemories.find((item) => item.id === mem.id);
-              return newer ? { ...mem, ...newer } : { ...mem, visibility };
-            }),
-          );
-        }
-        pushToast('Journey visibility updated');
-      } catch (error) {
-        pushToast(error.message || 'Unable to update journey', 'error');
-        throw error;
-      }
-    },
-    [pushToast],
-  );
+  useEffect(() => {
+    if (activePanel !== 'userProfile') {
+      setUserJourneysTarget(null);
+    }
+  }, [activePanel]);
 
   const fetchMemoryDetails = useCallback(
     async (memoryId) => {
@@ -604,10 +536,44 @@ function MapPage() {
     ],
   );
 
+  const handleProfileMemoryClick = useCallback(
+    (memory) => {
+      if (!memory) return;
+      setFocusBounds({
+        minLat: Number(memory.latitude),
+        maxLat: Number(memory.latitude),
+        minLng: Number(memory.longitude),
+        maxLng: Number(memory.longitude),
+      });
+      handleMemoryFromPanel(memory);
+    },
+    [handleMemoryFromPanel],
+  );
+
+  const openProfileFromList = useCallback(
+    (handleValue, options = {}) => {
+      const normalized = normalizeHandle(handleValue?.handle || handleValue);
+      if (!normalized) return;
+      if (normalized === normalizeHandle(user?.handle || '')) {
+        openProfilePanel();
+        return;
+      }
+      const displayName = handleValue?.name || '';
+      setUserMemoriesTarget({ handle: normalized, name: displayName });
+      setUserJourneysTarget({ handle: normalized, name: displayName });
+      openUserProfilePanel(normalized, options);
+    },
+    [openProfilePanel, openUserProfilePanel, user?.handle],
+  );
+
   return (
     <div className="map-page">
       <div className="map-page__canvas">
-        <MapView {...mapProps} />
+        <MapView
+          {...mapProps}
+          isPanelOpen={Boolean(activePanel)}
+          panelWidth={activePanel ? '480px' : '480px'}
+        />
         <TopRightActions
           filters={filters}
           isFilterOpen={isFilterOpen}
@@ -619,6 +585,29 @@ function MapPage() {
           onToggleVisibilityFilter={toggleVisibilityFilter}
           onSearchChange={(value) => setFilters((prev) => ({ ...prev, search: value }))}
         />
+      </div>
+      <div className="map-theme-toggle">
+        <Button
+          variant="ghost"
+          className="map-fab__button"
+          onClick={cycleTheme}
+          aria-label={`Theme: ${theme}`}
+          title="Change theme"
+        >
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 1 0 9.79 9.79Z" />
+          </svg>
+        </Button>
       </div>
 
       <Modal
@@ -655,10 +644,7 @@ function MapPage() {
         onClose={() => setPlacingMemory(false)}
         className="modal-content--wide"
       >
-        <h3>Place a memory</h3>
-        <p className="memory-card__meta">
-          Drop a note that others can unlock once they reach this spot.
-        </p>
+        <h3 className='pb-4'>New Pin</h3>
         <PlaceMemoryForm
           coords={userLocation}
           loading={savingMemory}
@@ -668,32 +654,17 @@ function MapPage() {
         />
       </Modal>
 
-      <MemoriesPanel
-        isOpen={activePanel === 'memories'}
+      <ProfilePanel
+        isOpen={activePanel === 'profile'}
         onClose={closePanel}
         placedMemories={placedMemories}
         foundMemories={foundMemories}
-        onSelectMemory={handleMemoryFromPanel}
-        onChangeVisibility={handleVisibilityUpdate}
-      />
-      <JourneysPanel
-        isOpen={activePanel === 'journeys'}
-        onClose={closePanel}
         journeys={journeys}
-        journeyVisibilityMap={journeyVisibilityMap}
+        onSelectMemory={handleProfileMemoryClick}
+        onOpenProfile={openProfileFromList}
         journeyMemories={journeyMemories}
-        loadingJourneyId={journeyLoadingId}
-        onSelectJourney={fetchJourneyMemories}
-        onChangeJourneyVisibility={handleJourneyVisibilityUpdate}
-        onSelectMemory={handleMemoryFromPanel}
+        journeyVisibilityMap={journeyVisibilityMap}
       />
-      <ProfilePanel isOpen={activePanel === 'profile'} onClose={closePanel} />
-      <FriendsPanel
-        isOpen={activePanel === 'followers'}
-        onClose={closePanel}
-        onViewMemories={viewMemoriesForHandle}
-      />
-
       <Modal
         isOpen={Boolean(memoryGroupSelection)}
         onClose={() => setMemoryGroupSelection(null)}
@@ -718,7 +689,7 @@ function MapPage() {
         memory={detailMemory}
         loading={detailLoading}
         onClose={() => setDetailMemory(null)}
-        onViewProfile={(handleValue) => openUserProfilePanel(handleValue || '')}
+        onViewProfile={(handleValue) => openProfileFromList(handleValue)}
       />
 
       <UserProfilePanel
@@ -729,21 +700,29 @@ function MapPage() {
         onUnfollow={userProfileActions.onUnfollow}
         onViewMemories={(profile) => {
           if (profile?.handle) {
-            viewMemoriesForHandle(profile.handle);
+            openProfileFromList(profile);
           }
         }}
         onViewJourneys={(profile) => {
           if (profile?.handle) {
-            viewJourneysForHandle(profile.handle);
+            openProfileFromList(profile);
           }
         }}
-        onClose={() => closePanel()}
+        onSelectMemory={handleProfileMemoryClick}
+        placedMemories={userMemories.placed}
+        foundMemories={userMemories.found}
+        journeys={userJourneysData.journeys}
+        journeyMemories={userJourneysData.memMap}
+        journeyVisibilityMap={userJourneysData.visibilityMap}
+        onOpenProfile={openProfileFromList}
+        onClose={() => goBackFromUserProfile()}
       />
 
       <Modal isOpen={guestPromptOpen} onClose={() => {}}>
-        <h3>Join mempin</h3>
+        <h3><strong>Join mempin</strong></h3>
+        <br></br>
         <p>
-          Sign in to place and unlock memories at real-world locations. You can
+          Sign in to place and unlock memory pins at real-world locations. You can
           also continue as a guest to browse nearby markers.
         </p>
         <div className="guest-modal__actions">

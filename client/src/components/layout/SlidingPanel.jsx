@@ -1,4 +1,4 @@
-function SlidingPanel({ isOpen, onClose, title, children, width = '460px' }) {
+function SlidingPanel({ isOpen, onClose, title, children, width = '460px', hideHeader = false }) {
   const panelStyle = { width, '--panel-width': width };
   return (
     <div className={`sliding-panel ${isOpen ? 'open' : ''}`}>
@@ -8,9 +8,11 @@ function SlidingPanel({ isOpen, onClose, title, children, width = '460px' }) {
         onClick={onClose}
       />
       <div className="sliding-panel__content" style={panelStyle}>
-        <div className="sliding-panel__header">
-          <h3>{title}</h3>
-        </div>
+        {!hideHeader && (
+          <div className="sliding-panel__header">
+            <h3>{title}</h3>
+          </div>
+        )}
         <div className="sliding-panel__body">{children}</div>
       </div>
     </div>

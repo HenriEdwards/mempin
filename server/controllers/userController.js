@@ -2,6 +2,7 @@ const asyncHandler = require('../utils/asyncHandler');
 const userModel = require('../models/userModel');
 const db = require('../db/queries');
 const { normalizeHandle, isValidHandle } = require('../utils/handles');
+const friendsModel = require('../models/friendsModel');
 
 const getCurrentUser = asyncHandler(async (req, res) => {
   if (!req.user) {
@@ -51,6 +52,12 @@ const getUserStats = asyncHandler(async (req, res) => {
      WHERE following_id = ?`,
     [userId],
   );
+  const followingRows = await db.query(
+    `SELECT COUNT(*) AS count
+     FROM user_followers
+     WHERE follower_id = ?`,
+    [userId],
+  );
   const latestPlacedRows = await db.query(
     `SELECT id, title, short_description AS shortDescription, created_at AS createdAt
      FROM memories
@@ -75,6 +82,7 @@ const getUserStats = asyncHandler(async (req, res) => {
       foundCount: foundRows[0]?.count || 0,
       totalViewsOnMyMemories: viewsRows[0]?.totalViews || 0,
       followerCount: followerRows[0]?.count || 0,
+      followingCount: followingRows[0]?.count || 0,
       latestPlaced: latestPlacedRows[0] || null,
       latestFound: latestFoundRows[0] || null,
     },
@@ -145,9 +153,43 @@ const getUserPublicProfile = asyncHandler(async (req, res) => {
   });
 });
 
+const getUserFollowingPublic = asyncHandler(async (req, res) => {
+  const handle = normalizeHandle(req.params.handle);
+  if (!handle) {
+    return res.status(400).json({ error: 'Invalid handle' });
+  }
+
+  const user = await userModel.findByHandle(handle);
+  if (!user) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+
+  const viewerId = req.user?.id || null;
+  const following = await friendsModel.getFollowingForUser(user.id, viewerId);
+  res.json({ following });
+});
+
+const getUserFollowersPublic = asyncHandler(async (req, res) => {
+  const handle = normalizeHandle(req.params.handle);
+  if (!handle) {
+    return res.status(400).json({ error: 'Invalid handle' });
+  }
+
+  const user = await userModel.findByHandle(handle);
+  if (!user) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+
+  const viewerId = req.user?.id || null;
+  const followers = await friendsModel.getFollowersForUser(user.id, viewerId);
+  res.json({ followers });
+});
+
 module.exports = {
   getCurrentUser,
   getUserStats,
   updateHandle,
   getUserPublicProfile,
+  getUserFollowingPublic,
+  getUserFollowersPublic,
 };

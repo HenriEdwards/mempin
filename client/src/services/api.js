@@ -68,6 +68,8 @@ const api = {
       method: 'DELETE',
     }),
   getFollowerSuggestions: () => request('/api/followers/suggestions'),
+  getUserFollowing: (handle) => request(`/api/users/handle/${handle}/following`),
+  getUserFollowers: (handle) => request(`/api/users/handle/${handle}/followers`),
   getJourneys: () => request('/api/journeys'),
   getJourneyMemories: (journeyId) => request(`/api/journeys/${journeyId}/memories`),
   updateJourneyVisibility: (journeyId, visibility) =>
