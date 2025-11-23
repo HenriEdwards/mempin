@@ -1,25 +1,43 @@
 :root {
-  --color-primary: #2563eb;
-  --color-primary-soft: rgba(37, 99, 235, 0.12);
-  --color-surface: #ffffff;
-  --color-surface-alt: #f7f7f7;
-  --color-surface-muted: #f2f4f7;
-  --color-border: #e5e5e5;
-  --color-text: #1a1a1a;
-  --color-text-muted: #6b6b6b;
-  --color-accent: #2563eb;
-  --shadow-soft: 0 6px 20px rgba(0, 0, 0, 0.08);
+  --color-primary: #04ddff;
+  --color-primary-soft: rgba(4, 221, 255, 0.16);
+  --color-surface: #f8f8f8;
+  --color-surface-alt: #f1f1f1;
+  --color-surface-muted: #ebebeb;
+  --color-border: #dcdcdc;
+  --color-text: #1f1f1f;
+  --color-text-muted: #6e6e73;
+  --color-accent: #04ddff;
+  --shadow-soft: 0 8px 28px rgba(0, 0, 0, 0.08);
+  --explorer-bg: rgba(255, 255, 255, 0.9);
+  --explorer-border: rgba(0, 0, 0, 0.06);
+  --explorer-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+  --explorer-text: #161616;
+  --explorer-subtext: #4a4a4a;
+  --explorer-button-bg: rgba(0, 0, 0, 0.02);
+  --explorer-button-border: rgba(0, 0, 0, 0.06);
+  --explorer-glow-a: rgba(4, 221, 255, 0.16);
+  --explorer-glow-b: rgba(4, 221, 255, 0.12);
 }
 
 :root[data-theme='dark'] {
-  --color-primary: #3b82f6;
-  --color-primary-soft: rgba(59, 130, 246, 0.16);
-  --color-surface: #0f0f0f;
-  --color-surface-alt: #1a1a1a;
-  --color-surface-muted: #141414;
-  --color-border: #2a2a2a;
-  --color-text: #f5f5f5;
-  --color-text-muted: #a1a1a1;
-  --color-accent: #3b82f6;
-  --shadow-soft: 0 6px 20px rgba(0, 0, 0, 0.6);
+  --color-primary: #04ddff;
+  --color-primary-soft: rgba(4, 221, 255, 0.22);
+  --color-surface: #171717;
+  --color-surface-alt: #1f1f1f;
+  --color-surface-muted: #121212;
+  --color-border: #2c2c2c;
+  --color-text: #f0f0f0;
+  --color-text-muted: #a8a8a8;
+  --color-accent: #04ddff;
+  --shadow-soft: 0 10px 30px rgba(0, 0, 0, 0.55);
+  --explorer-bg: rgba(20, 20, 20, 0.9);
+  --explorer-border: rgba(255, 255, 255, 0.08);
+  --explorer-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  --explorer-text: #ededed;
+  --explorer-subtext: #bcbcbc;
+  --explorer-button-bg: rgba(255, 255, 255, 0.04);
+  --explorer-button-border: rgba(255, 255, 255, 0.08);
+  --explorer-glow-a: rgba(4, 221, 255, 0.2);
+  --explorer-glow-b: rgba(4, 221, 255, 0.16);
 }

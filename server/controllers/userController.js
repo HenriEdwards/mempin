@@ -1,6 +1,7 @@
 const asyncHandler = require('../utils/asyncHandler');
 const userModel = require('../models/userModel');
 const db = require('../db/queries');
+const { normalizeHandle, isValidHandle } = require('../utils/handles');
 
 const getCurrentUser = asyncHandler(async (req, res) => {
   if (!req.user) {
@@ -17,6 +18,7 @@ const getCurrentUser = asyncHandler(async (req, res) => {
       id: user.id,
       name: user.name,
       email: user.email,
+      handle: user.handle,
       avatarUrl: user.avatarUrl,
     },
   });
@@ -79,7 +81,73 @@ const getUserStats = asyncHandler(async (req, res) => {
   });
 });
 
+const updateHandle = asyncHandler(async (req, res) => {
+  const current = await userModel.findById(req.user.id);
+  if (current?.handle) {
+    return res.status(400).json({ error: 'Handle is already set and cannot be changed' });
+  }
+
+  const normalizedHandle = normalizeHandle(req.body.handle);
+  if (!normalizedHandle) {
+    return res.status(400).json({ error: 'Handle is required' });
+  }
+  if (!isValidHandle(normalizedHandle)) {
+    return res.status(400).json({ error: 'Handle must be 3-20 characters of letters, numbers, or _' });
+  }
+
+  const existing = await userModel.findByHandle(normalizedHandle);
+  if (existing && existing.id !== req.user.id) {
+    return res.status(409).json({ error: 'Handle is already taken' });
+  }
+
+  const updated = await userModel.updateHandle(req.user.id, normalizedHandle);
+  return res.json({
+    user: {
+      id: updated.id,
+      name: updated.name,
+      email: updated.email,
+      handle: updated.handle,
+      avatarUrl: updated.avatarUrl,
+    },
+  });
+});
+
+const getUserPublicProfile = asyncHandler(async (req, res) => {
+  const handle = normalizeHandle(req.params.handle);
+  if (!handle) {
+    return res.status(400).json({ error: 'Invalid handle' });
+  }
+
+  const user = await userModel.findByHandle(handle);
+  if (!user) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+
+  const [placedRows, followerRows, followingRows] = await Promise.all([
+    db.query('SELECT COUNT(*) AS count FROM memories WHERE owner_id = ?', [user.id]),
+    db.query('SELECT COUNT(*) AS count FROM user_followers WHERE following_id = ?', [user.id]),
+    db.query('SELECT COUNT(*) AS count FROM user_followers WHERE follower_id = ?', [user.id]),
+  ]);
+
+  return res.json({
+    user: {
+      id: user.id,
+      name: user.name,
+      handle: user.handle,
+      email: user.email,
+      avatarUrl: user.avatarUrl,
+      stats: {
+        placedCount: placedRows[0]?.count || 0,
+        followerCount: followerRows[0]?.count || 0,
+        followingCount: followingRows[0]?.count || 0,
+      },
+    },
+  });
+});
+
 module.exports = {
   getCurrentUser,
   getUserStats,
+  updateHandle,
+  getUserPublicProfile,
 };

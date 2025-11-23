@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import userIconUrl from 'leaflet/dist/images/marker-icon.png';
 import userIconRetina from 'leaflet/dist/images/marker-icon-2x.png';
 import userIconShadow from 'leaflet/dist/images/marker-shadow.png';
@@ -26,12 +27,11 @@ const userMarkerIcon = L.icon({
   shadowSize: [41, 41],
 });
 
-const BASE_ZOOM_FOR_SCALING = 16;
-// Lower exponent and base distance to avoid over-merging distant clusters at low zooms
-const ZOOM_SCALE_EXPONENT = 0.6;
-const MERGE_BASE_DISTANCE_METERS = 60;
 const MIN_VISUAL_RADIUS = 60;
 const MAX_VISUAL_RADIUS = 20000;
+const BASE_ZOOM_FOR_SCALING = 16;
+const ZOOM_SCALE_EXPONENT = 0.6;
+const MERGE_BASE_DISTANCE_METERS = 60;
 
 function formatRelative(value) {
   if (!value) return 'Never';
@@ -48,22 +48,24 @@ function formatRelative(value) {
   return new Intl.DateTimeFormat('en', { dateStyle: 'medium' }).format(date);
 }
 
-function MapView({
+function FlatMapView({
   userLocation,
   locationError,
   onRetryLocation,
   memories,
   onSelectGroup,
-  onRequestPlace,
-  canPlaceMemory,
+  hasLocation,
+  focusBounds,
+  journeyPaths = [],
 }) {
-  const hasLocation = Boolean(userLocation);
   const mapContainerRef = useRef(null);
   const mapRef = useRef(null);
   const userLayerRef = useRef(null);
   const memoriesLayerRef = useRef(null);
+  const journeysLayerRef = useRef(null);
   const [mapReady, setMapReady] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(2);
+
   const groupedMemories = useMemo(() => {
     const groups = new Map();
     memories.forEach((memory) => {
@@ -97,6 +99,7 @@ function MapView({
 
     userLayerRef.current = L.layerGroup().addTo(mapRef.current);
     memoriesLayerRef.current = L.layerGroup().addTo(mapRef.current);
+    journeysLayerRef.current = L.layerGroup().addTo(mapRef.current);
 
     setMapReady(true);
     setZoomLevel(mapRef.current.getZoom());
@@ -127,7 +130,6 @@ function MapView({
     const map = mapRef.current;
     const updateZoom = () => setZoomLevel(map.getZoom());
     map.on('zoomend', updateZoom);
-    // sync state with current zoom immediately
     updateZoom();
     return () => map.off('zoomend', updateZoom);
   }, [mapReady]);
@@ -152,7 +154,6 @@ function MapView({
       const clusterMembers = [seed];
       const queue = [seed];
 
-      // Merge nearby points together as zoom level decreases
       while (queue.length) {
         const current = queue.pop();
         for (let i = pending.length - 1; i >= 0; i -= 1) {
@@ -186,7 +187,7 @@ function MapView({
 
       let radius = 0;
       clusterMembers.forEach((item) => {
-        const baseRadius = item.memories[0]?.radiusM || 50;
+        const baseRadius = item.memories[0]?.radiusM || MIN_VISUAL_RADIUS;
         const scaledRadius = Math.min(
           Math.max(baseRadius * scale, MIN_VISUAL_RADIUS),
           MAX_VISUAL_RADIUS,
@@ -239,19 +240,72 @@ function MapView({
     });
   }, [mapReady, displayGroups, onSelectGroup]);
 
+  useEffect(() => {
+    if (!mapReady || !journeysLayerRef.current) return;
+    journeysLayerRef.current.clearLayers();
+    journeyPaths.forEach((journey) => {
+      const latLngs = journey.points.map((pt) => [pt.latitude, pt.longitude]);
+      if (latLngs.length < 2) return;
+      L.polyline(latLngs, {
+        color: journey.color || '#0ea5e9',
+        weight: 4,
+        opacity: 0.7,
+      }).addTo(journeysLayerRef.current);
+    });
+  }, [journeyPaths, mapReady]);
+
+  useEffect(() => {
+    if (!mapReady || !mapRef.current || !focusBounds) return;
+    mapRef.current.fitBounds(
+      [
+        [focusBounds.minLat, focusBounds.minLng],
+        [focusBounds.maxLat, focusBounds.maxLng],
+      ],
+      { padding: [32, 32] },
+    );
+  }, [focusBounds, mapReady]);
+
   return (
-    <div className="map-panel">
-      <div className="map-wrapper">
-        <div ref={mapContainerRef} className="map-canvas" />
-        {!hasLocation && (
-          <div className="map-placeholder empty-state">
-            <p>{locationError || 'Requesting your location...'}</p>
-            <Button variant="primary" onClick={onRetryLocation}>
-              Try again
-            </Button>
-          </div>
-        )}
-      </div>
+    <div className="map-wrapper">
+      <div ref={mapContainerRef} className="map-canvas" />
+      {!hasLocation && (
+        <div className="map-placeholder empty-state">
+          <p>{locationError || 'Requesting your location...'}</p>
+          <Button variant="primary" onClick={onRetryLocation}>
+            Try again
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MapView({
+  userLocation,
+  locationError,
+  onRetryLocation,
+  memories,
+  onSelectGroup,
+  onRequestPlace,
+  canPlaceMemory,
+  focusBounds,
+  journeyPaths,
+}) {
+  const hasLocation = Boolean(userLocation);
+
+  return (
+    <div className="map-panel map-panel--flat">
+      <FlatMapView
+        userLocation={userLocation}
+        locationError={locationError}
+        onRetryLocation={onRetryLocation}
+        memories={memories}
+        onSelectGroup={onSelectGroup}
+        hasLocation={hasLocation}
+        focusBounds={focusBounds}
+        journeyPaths={journeyPaths}
+      />
+
       <div className="map-fab">
         <span
           className="tooltip-anchor"

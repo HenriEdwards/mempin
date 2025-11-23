@@ -1,5 +1,6 @@
 const asyncHandler = require('../utils/asyncHandler');
 const friendsModel = require('../models/friendsModel');
+const { normalizeHandle, isValidHandle } = require('../utils/handles');
 
 const listFollowers = asyncHandler(async (req, res) => {
   const [following, followers] = await Promise.all([
@@ -10,13 +11,14 @@ const listFollowers = asyncHandler(async (req, res) => {
 });
 
 const addFollower = asyncHandler(async (req, res) => {
-  if (!req.body.email) {
-    return res.status(400).json({ error: 'Email is required' });
+  const normalizedHandle = normalizeHandle(req.body.handle);
+  if (!normalizedHandle) {
+    return res.status(400).json({ error: 'Handle is required' });
   }
-  const follower = await friendsModel.followByEmail(
-    req.user.id,
-    String(req.body.email).trim().toLowerCase(),
-  );
+  if (!isValidHandle(normalizedHandle)) {
+    return res.status(400).json({ error: 'Handle must be 3-20 letters, numbers or _' });
+  }
+  const follower = await friendsModel.followByHandle(req.user.id, normalizedHandle);
   res.status(201).json({ follower });
 });
 
@@ -29,8 +31,14 @@ const removeFollower = asyncHandler(async (req, res) => {
   res.json({ success: true });
 });
 
+const listSuggestions = asyncHandler(async (req, res) => {
+  const suggestions = await friendsModel.getFollowSuggestions(req.user.id, 10);
+  res.json({ suggestions });
+});
+
 module.exports = {
   listFollowers,
   addFollower,
   removeFollower,
+  listSuggestions,
 };

@@ -15,11 +15,22 @@ function TopRightActions({
   onToggleVisibilityFilter,
   onSearchChange,
 }) {
-  const { openMemoriesPanel, openJourneysPanel, openFollowersPanel } = useUI();
+  const { openMemoriesPanel, openJourneysPanel, openFollowersPanel, activePanel } = useUI();
   const visibilitySet = filters?.visibilities || new Set(VISIBILITY_OPTIONS);
+  const isPanelOpen = Boolean(activePanel);
+  const panelWidthMap = {
+    memories: '480px',
+    followers: '480px',
+    profile: '480px',
+    journeys: '480px',
+    userProfile: '480px',
+  };
+  const defaultPanelWidth = '480px';
+  const activePanelWidth = panelWidthMap[activePanel] || defaultPanelWidth;
+  const actionOffset = isPanelOpen ? `calc(${activePanelWidth} + 1.5rem)` : '1.5rem';
 
   return (
-    <div className="map-actions">
+    <div className={`map-actions ${isPanelOpen ? 'map-actions--panel-open' : ''}`} style={{ right: actionOffset }}>
       <Button variant="ghost" onClick={openMemoriesPanel}>
         Memories
       </Button>
@@ -124,7 +135,7 @@ function TopRightActions({
             <div className="filter-card__row">
               <div className="filter-card__label">Search</div>
               <Input
-                placeholder="Search memories or journeys"
+                placeholder="Search memories, journeys, or handles"
                 value={filters?.search || ''}
                 onChange={(event) => onSearchChange?.(event.target.value)}
               />

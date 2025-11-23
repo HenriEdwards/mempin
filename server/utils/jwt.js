@@ -21,6 +21,7 @@ function signUser(user) {
       id: user.id,
       email: user.email,
       name: user.name,
+      handle: user.handle,
       avatarUrl: user.avatarUrl,
     },
     process.env.JWT_SECRET,

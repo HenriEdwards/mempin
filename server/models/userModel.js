@@ -7,6 +7,7 @@ function mapUser(row) {
     googleId: row.google_id,
     email: row.email,
     name: row.name,
+    handle: row.handle,
     avatarUrl: row.avatar_url,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -15,7 +16,7 @@ function mapUser(row) {
 
 async function findById(id) {
   const rows = await db.query(
-    'SELECT id, google_id, email, name, avatar_url, created_at, updated_at FROM users WHERE id = ? LIMIT 1',
+    'SELECT id, google_id, email, name, handle, avatar_url, created_at, updated_at FROM users WHERE id = ? LIMIT 1',
     [id],
   );
   return mapUser(rows[0]);
@@ -23,7 +24,7 @@ async function findById(id) {
 
 async function findByGoogleId(googleId) {
   const rows = await db.query(
-    'SELECT id, google_id, email, name, avatar_url, created_at, updated_at FROM users WHERE google_id = ? LIMIT 1',
+    'SELECT id, google_id, email, name, handle, avatar_url, created_at, updated_at FROM users WHERE google_id = ? LIMIT 1',
     [googleId],
   );
   return mapUser(rows[0]);
@@ -31,23 +32,31 @@ async function findByGoogleId(googleId) {
 
 async function findByEmail(email) {
   const rows = await db.query(
-    'SELECT id, google_id, email, name, avatar_url, created_at, updated_at FROM users WHERE email = ? LIMIT 1',
+    'SELECT id, google_id, email, name, handle, avatar_url, created_at, updated_at FROM users WHERE email = ? LIMIT 1',
     [email],
   );
   return mapUser(rows[0]);
 }
 
-async function findByEmails(emails = []) {
-  const unique = Array.from(new Set(emails.filter(Boolean)));
+async function findByHandle(handle) {
+  const rows = await db.query(
+    'SELECT id, google_id, email, name, handle, avatar_url, created_at, updated_at FROM users WHERE handle = ? LIMIT 1',
+    [handle],
+  );
+  return mapUser(rows[0]);
+}
+
+async function findByHandles(handles = []) {
+  const unique = Array.from(new Set(handles.filter(Boolean)));
   if (!unique.length) {
     return [];
   }
 
   const placeholders = unique.map(() => '?').join(',');
   const rows = await db.query(
-    `SELECT id, google_id, email, name, avatar_url, created_at, updated_at
+    `SELECT id, google_id, email, name, handle, avatar_url, created_at, updated_at
      FROM users
-     WHERE email IN (${placeholders})`,
+     WHERE handle IN (${placeholders})`,
     unique,
   );
   return rows.map(mapUser);
@@ -66,17 +75,30 @@ async function upsertGoogleUser({ googleId, email, name, avatarUrl }) {
   );
 
   const rows = await db.query(
-    'SELECT id, google_id, email, name, avatar_url, created_at, updated_at FROM users WHERE google_id = ? OR email = ? LIMIT 1',
+    'SELECT id, google_id, email, name, handle, avatar_url, created_at, updated_at FROM users WHERE google_id = ? OR email = ? LIMIT 1',
     [googleId, email],
   );
 
   return mapUser(rows[0]);
 }
 
+async function updateHandle(userId, handle) {
+  await db.query(
+    `UPDATE users
+     SET handle = ?
+     WHERE id = ?
+     LIMIT 1`,
+    [handle, userId],
+  );
+  return findById(userId);
+}
+
 module.exports = {
   findById,
   findByGoogleId,
   findByEmail,
-  findByEmails,
+  findByHandle,
+  findByHandles,
   upsertGoogleUser,
+  updateHandle,
 };

@@ -78,7 +78,7 @@ function JourneysPanel({
       isOpen={isOpen}
       onClose={onClose}
       title="Journeys"
-      width="520px"
+      width="480px"
     >
       <div className="memories-panel journeys-panel">
         <Input

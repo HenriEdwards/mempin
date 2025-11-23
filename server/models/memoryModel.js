@@ -17,6 +17,9 @@ function mapMemory(row = {}) {
     title: row.title,
     shortDescription: row.short_description,
     body: row.body,
+    ownerHandle: row.owner_handle || null,
+    ownerName: row.owner_name || null,
+    ownerAvatarUrl: row.owner_avatar_url || null,
     tags,
     visibility: row.visibility,
     latitude: typeof row.latitude === 'number' ? row.latitude : Number(row.latitude),
@@ -70,11 +73,15 @@ async function getMemoryById(id) {
   const rows = await db.query(
     `SELECT
       m.*,
+      u.name AS owner_name,
+      u.handle AS owner_handle,
+      u.avatar_url AS owner_avatar_url,
       COALESCE(mu.count_unlocks, 0) AS times_found,
       COALESCE(mu.last_unlocked_at, NULL) AS last_unlocked_at,
       COALESCE(ma.asset_count, 0) AS has_media,
       COALESCE(js.step_count, NULL) AS journey_step_count
     FROM memories m
+    INNER JOIN users u ON u.id = m.owner_id
     LEFT JOIN (
       SELECT memory_id, COUNT(*) AS count_unlocks, MAX(unlocked_at) AS last_unlocked_at
       FROM memory_unlocks
@@ -103,11 +110,15 @@ async function getPlacedMemories(ownerId) {
   const rows = await db.query(
     `SELECT
       m.*,
+      u.name AS owner_name,
+      u.handle AS owner_handle,
+      u.avatar_url AS owner_avatar_url,
       COALESCE(mu.count_unlocks, 0) AS times_found,
       COALESCE(mu.last_unlocked_at, NULL) AS last_unlocked_at,
       COALESCE(ma.asset_count, 0) AS has_media,
       COALESCE(js.step_count, NULL) AS journey_step_count
      FROM memories m
+     INNER JOIN users u ON u.id = m.owner_id
      LEFT JOIN (
        SELECT memory_id, COUNT(*) AS count_unlocks, MAX(unlocked_at) AS last_unlocked_at
        FROM memory_unlocks
@@ -136,12 +147,16 @@ async function getUnlockedMemories(userId) {
   const rows = await db.query(
     `SELECT
       m.*,
+      u.name AS owner_name,
+      u.handle AS owner_handle,
+      u.avatar_url AS owner_avatar_url,
       mu.unlocked_at,
       COALESCE(ma.asset_count, 0) AS has_media,
       COALESCE(mu2.last_unlocked_at, NULL) AS last_unlocked_at,
       COALESCE(js.step_count, NULL) AS journey_step_count
      FROM memory_unlocks mu
      INNER JOIN memories m ON m.id = mu.memory_id
+     INNER JOIN users u ON u.id = m.owner_id
      LEFT JOIN (
        SELECT memory_id, COUNT(*) AS asset_count
        FROM memory_assets
@@ -174,11 +189,15 @@ async function getNearbyMemories({ latitude, longitude, radiusMeters }) {
   const rows = await db.query(
     `SELECT
       m.*,
+      u.name AS owner_name,
+      u.handle AS owner_handle,
+      u.avatar_url AS owner_avatar_url,
       COALESCE(mu.count_unlocks, 0) AS times_found,
       COALESCE(mu.last_unlocked_at, NULL) AS last_unlocked_at,
       COALESCE(ma.asset_count, 0) AS has_media,
       COALESCE(js.step_count, NULL) AS journey_step_count
      FROM memories m
+     INNER JOIN users u ON u.id = m.owner_id
      LEFT JOIN (
        SELECT memory_id, COUNT(*) AS count_unlocks, MAX(unlocked_at) AS last_unlocked_at
        FROM memory_unlocks
@@ -218,11 +237,15 @@ async function getAllActiveMemories() {
   const rows = await db.query(
     `SELECT
       m.*,
+      u.name AS owner_name,
+      u.handle AS owner_handle,
+      u.avatar_url AS owner_avatar_url,
       COALESCE(mu.count_unlocks, 0) AS times_found,
       COALESCE(mu.last_unlocked_at, NULL) AS last_unlocked_at,
       COALESCE(ma.asset_count, 0) AS has_media,
       COALESCE(js.step_count, NULL) AS journey_step_count
      FROM memories m
+     INNER JOIN users u ON u.id = m.owner_id
      LEFT JOIN (
        SELECT memory_id, COUNT(*) AS count_unlocks, MAX(unlocked_at) AS last_unlocked_at
        FROM memory_unlocks
@@ -264,11 +287,15 @@ async function getMemoriesByJourney(journeyId, ownerId) {
   const rows = await db.query(
     `SELECT
       m.*,
+      u.name AS owner_name,
+      u.handle AS owner_handle,
+      u.avatar_url AS owner_avatar_url,
       COALESCE(mu.count_unlocks, 0) AS times_found,
       COALESCE(mu.last_unlocked_at, NULL) AS last_unlocked_at,
       COALESCE(ma.asset_count, 0) AS has_media,
       COALESCE(js.step_count, NULL) AS journey_step_count
      FROM memories m
+     INNER JOIN users u ON u.id = m.owner_id
      LEFT JOIN (
        SELECT memory_id, COUNT(*) AS count_unlocks, MAX(unlocked_at) AS last_unlocked_at
        FROM memory_unlocks

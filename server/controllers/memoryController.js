@@ -12,6 +12,7 @@ const memoryTargetModel = require('../models/memoryTargetModel');
 const friendsModel = require('../models/friendsModel');
 const journeyModel = require('../models/journeyModel');
 const userModel = require('../models/userModel');
+const { normalizeHandle, isValidHandle } = require('../utils/handles');
 
 const allowedVisibility = new Set(['public', 'private', 'unlisted', 'followers']);
 
@@ -65,12 +66,19 @@ function parseTagsInput(value) {
     .slice(0, 10);
 }
 
-async function appendTargets(memoryId, emailList = []) {
-  if (!emailList.length) return;
-  const users = await userModel.findByEmails(emailList);
-  const targetIds = users
-    .filter((user) => user && user.id)
-    .map((user) => user.id);
+async function appendTargets(memoryId, handleList = []) {
+  if (!handleList.length) return;
+  const normalizedHandles = Array.from(
+    new Set(
+      handleList
+        .map((value) => normalizeHandle(value))
+        .filter((value) => isValidHandle(value)),
+    ),
+  );
+  if (!normalizedHandles.length) return;
+
+  const users = await userModel.findByHandles(normalizedHandles);
+  const targetIds = users.filter((user) => user && user.id).map((user) => user.id);
   if (targetIds.length) {
     await memoryTargetModel.addTargets(memoryId, targetIds);
   }
@@ -125,15 +133,15 @@ const createMemory = [
     const radiusM = clampRadius(parseNumber(req.body.radiusM) || 50);
     const visibility = allowedVisibility.has(req.body.visibility)
       ? req.body.visibility
-      : 'public';
+    : 'public';
     const title = req.body.title ? String(req.body.title).trim() : '';
     const shortDescription = req.body.shortDescription
       ? String(req.body.shortDescription).trim().slice(0, 100)
       : null;
     const body = req.body.body ? String(req.body.body).trim() : null;
     const tags = parseTagsInput(req.body.tags);
-    const targetEmails = parseCommaList(req.body.targetEmails).map((email) =>
-      email.toLowerCase(),
+    const targetHandles = parseCommaList(req.body.targetHandles).map((handle) =>
+      normalizeHandle(handle),
     );
     const newJourneyTitle = req.body.newJourneyTitle
       ? String(req.body.newJourneyTitle).trim()
@@ -181,8 +189,8 @@ const createMemory = [
       radiusM,
     });
 
-    if (targetEmails.length) {
-      await appendTargets(memory.id, targetEmails);
+    if (targetHandles.length) {
+      await appendTargets(memory.id, targetHandles);
     }
 
     const uploadedFiles = getUploadedFilesCollection(req.files);

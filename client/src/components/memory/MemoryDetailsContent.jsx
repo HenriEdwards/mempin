@@ -9,7 +9,7 @@ function formatDate(value) {
   }).format(new Date(value));
 }
 
-function MemoryDetailsContent({ memory, onGenerateQR }) {
+function MemoryDetailsContent({ memory, onGenerateQR, onViewProfile }) {
   if (!memory) return null;
   const imageAssets = (memory.assets || []).filter((asset) => asset.type === 'image');
   const audioAssets = (memory.assets || []).filter((asset) => asset.type === 'audio');
@@ -21,6 +21,20 @@ function MemoryDetailsContent({ memory, onGenerateQR }) {
         <div>
           <h2>{memory.title}</h2>
           {memory.shortDescription && <p>{memory.shortDescription}</p>}
+          {(memory.ownerHandle || memory.ownerName) && (
+            <p className="memory-details__owner">
+              by{' '}
+              <button
+                type="button"
+                className="link-button"
+                onClick={() => onViewProfile?.(memory.ownerHandle)}
+                disabled={!memory.ownerHandle}
+              >
+                {memory.ownerName || memory.ownerHandle}
+                {memory.ownerHandle ? ` (@${memory.ownerHandle})` : ''}
+              </button>
+            </p>
+          )}
         </div>
         {onGenerateQR && (
           <Button variant="outline" onClick={() => onGenerateQR(shareUrl)}>

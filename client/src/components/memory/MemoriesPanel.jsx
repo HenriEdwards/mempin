@@ -52,7 +52,7 @@ function MemoriesPanel({
   };
 
   return (
-    <SlidingPanel isOpen={isOpen} onClose={onClose} title="Memories" width="420px">
+    <SlidingPanel isOpen={isOpen} onClose={onClose} title="Memories" width="480px">
       <div className="memories-panel">
         <div className="tabs tabs--segmented">
           <button

@@ -16,13 +16,18 @@ CREATE TABLE users (
   google_id VARCHAR(64) DEFAULT NULL,
   email VARCHAR(255) NOT NULL,
   name VARCHAR(255) DEFAULT NULL,
+  handle VARCHAR(20) DEFAULT NULL,       -- unique @handle (lowercase)
   avatar_url VARCHAR(512) DEFAULT NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
   PRIMARY KEY (id),
+
   UNIQUE KEY uq_users_email (email),
-  UNIQUE KEY uq_users_google_id (google_id)
+  UNIQUE KEY uq_users_google_id (google_id),
+  UNIQUE KEY uq_users_handle (handle)    -- ensures @handle is unique
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 
 -- JOURNEYS: Optional sequences of memories
 CREATE TABLE journeys (

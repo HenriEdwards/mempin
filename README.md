@@ -19,6 +19,10 @@ chatgpt suggestions
   Great for global density.
 
 
+firneds 
+
+"Not following anyone yet" text, suggest people in same continent, 
+
 -> 🔥 5. Timeline playback
 
 Play memories in chronological order on the map → little animation.

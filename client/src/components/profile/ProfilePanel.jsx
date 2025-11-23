@@ -3,12 +3,18 @@ import SlidingPanel from '../layout/SlidingPanel.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
 import api from '../../services/api.js';
 import Button from '../ui/Button.jsx';
+import Input from '../ui/Input.jsx';
+import { getHandleError, normalizeHandle } from '../../utils/handles.js';
 
 function ProfilePanel({ isOpen, onClose }) {
-  const { user } = useAuth();
+  const { user, refresh } = useAuth();
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [handleValue, setHandleValue] = useState('');
+  const [handleStatus, setHandleStatus] = useState('');
+  const [handleSaving, setHandleSaving] = useState(false);
+  const canEditHandle = !user?.handle;
 
   useEffect(() => {
     if (!isOpen || !user) {
@@ -28,8 +34,32 @@ function ProfilePanel({ isOpen, onClose }) {
       .finally(() => setLoading(false));
   }, [isOpen, user]);
 
+  useEffect(() => {
+    setHandleValue(user?.handle || '');
+    setHandleStatus('');
+  }, [user]);
+
+  const handleHandleSave = async () => {
+    if (!canEditHandle) return;
+    const validationError = getHandleError(handleValue);
+    if (validationError) {
+      setHandleStatus(validationError);
+      return;
+    }
+    setHandleSaving(true);
+    try {
+      await api.updateHandle(normalizeHandle(handleValue));
+      await refresh();
+      setHandleStatus('Handle saved');
+    } catch (err) {
+      setHandleStatus(err.message || 'Unable to update handle');
+    } finally {
+      setHandleSaving(false);
+    }
+  };
+
   return (
-    <SlidingPanel isOpen={isOpen} onClose={onClose} title="Profile" width="420px">
+    <SlidingPanel isOpen={isOpen} onClose={onClose} title="Profile" width="480px">
       <div className="panel-card profile-page">
         {!user ? (
           <Button
@@ -45,6 +75,32 @@ function ProfilePanel({ isOpen, onClose }) {
             <h2>Profile</h2>
             <p>{user.name}</p>
             <p>{user.email}</p>
+            <div className="profile-section">
+              <h4>Handle</h4>
+              {canEditHandle ? (
+                <div className="profile-handle">
+                  <Input
+                    value={handleValue}
+                    onChange={(event) => {
+                      setHandleValue(event.target.value);
+                      setHandleStatus('');
+                    }}
+                    placeholder="@yourname"
+                  />
+                  <Button onClick={handleHandleSave} disabled={handleSaving}>
+                    {handleSaving ? 'Saving...' : 'Set handle'}
+                  </Button>
+                </div>
+              ) : (
+                <div className="profile-handle">
+                  <Input value={`@${user.handle}`} readOnly disabled />
+                  <Button variant="ghost" disabled>
+                    Locked
+                  </Button>
+                </div>
+              )}
+              {handleStatus && <small>{handleStatus}</small>}
+            </div>
             {loading && <p>Loading stats...</p>}
             {error && <p className="error-text">{error}</p>}
             {stats && (

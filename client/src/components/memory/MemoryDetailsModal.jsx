@@ -3,7 +3,7 @@ import { QRCodeCanvas } from 'qrcode.react';
 import Modal from '../ui/Modal.jsx';
 import MemoryDetailsContent from './MemoryDetailsContent.jsx';
 
-function MemoryDetailsModal({ memory, onClose, loading = false }) {
+function MemoryDetailsModal({ memory, onClose, loading = false, onViewProfile }) {
   const [qrValue, setQrValue] = useState(null);
 
   useEffect(() => {
@@ -26,7 +26,11 @@ function MemoryDetailsModal({ memory, onClose, loading = false }) {
         {loading ? (
           <p>Loading memory...</p>
         ) : (
-          <MemoryDetailsContent memory={memory} onGenerateQR={handleGenerateQR} />
+          <MemoryDetailsContent
+            memory={memory}
+            onGenerateQR={handleGenerateQR}
+            onViewProfile={onViewProfile}
+          />
         )}
       </Modal>
       <Modal isOpen={Boolean(qrValue)} onClose={() => setQrValue(null)}>

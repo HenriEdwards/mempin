@@ -4,6 +4,7 @@ import UnlockDialog from '../components/map/UnlockDialog.jsx';
 import PlaceMemoryForm from '../components/memory/PlaceMemoryForm.jsx';
 import Modal from '../components/ui/Modal.jsx';
 import Button from '../components/ui/Button.jsx';
+import Input from '../components/ui/Input.jsx';
 import Toast from '../components/ui/Toast.jsx';
 import OverlappingMemoryPanel from '../components/memory/OverlappingMemoryPanel.jsx';
 import MemoryDetailsModal from '../components/memory/MemoryDetailsModal.jsx';
@@ -12,9 +13,11 @@ import JourneysPanel from '../components/memory/JourneysPanel.jsx';
 import TopRightActions from '../components/layout/TopRightActions.jsx';
 import ProfilePanel from '../components/profile/ProfilePanel.jsx';
 import FriendsPanel from '../components/friends/FriendsPanel.jsx';
+import UserProfilePanel from '../components/profile/UserProfilePanel.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useUI } from '../context/UIContext.jsx';
 import api from '../services/api.js';
+import { getHandleError, normalizeHandle } from '../utils/handles.js';
 
 const ALL_VISIBILITIES = ['public', 'followers', 'unlisted', 'private'];
 
@@ -35,8 +38,9 @@ function useToast() {
 }
 
 function MapPage() {
-  const { user, status, isGuest, loginAsGuest } = useAuth();
-  const { activePanel, closePanel } = useUI();
+  const { user, status, isGuest, loginAsGuest, refresh } = useAuth();
+  const { activePanel, closePanel, openUserProfilePanel, userProfileHandle, userProfileActions } =
+    useUI();
   const [userLocation, setUserLocation] = useState(null);
   const [locationError, setLocationError] = useState('');
   const [allMemories, setAllMemories] = useState([]);
@@ -64,6 +68,12 @@ function MapPage() {
     media: 'all',
     search: '',
   });
+  const [handleModalOpen, setHandleModalOpen] = useState(false);
+  const [handleDraft, setHandleDraft] = useState('');
+  const [handleError, setHandleError] = useState('');
+  const [savingHandle, setSavingHandle] = useState(false);
+  const [focusBounds, setFocusBounds] = useState(null);
+  const [journeyPaths, setJourneyPaths] = useState([]);
   const suggestedTags = useMemo(() => {
     const tagSet = new Set();
     placedMemories.forEach((memory) => {
@@ -165,6 +175,8 @@ function MapPage() {
           memory.body,
           (memory.tags || []).join(' '),
           memory.journeyTitle,
+          memory.ownerName,
+          memory.ownerHandle ? `@${memory.ownerHandle}` : '',
         ]
           .filter(Boolean)
           .join(' ')
@@ -174,6 +186,33 @@ function MapPage() {
     }
     return list;
   }, [allMemories, filters, user, foundIds]);
+
+  useEffect(() => {
+    const grouped = new Map();
+    filteredMemories
+      .filter((mem) => mem.journeyId)
+      .forEach((mem) => {
+        if (!grouped.has(mem.journeyId)) {
+          grouped.set(mem.journeyId, []);
+        }
+        grouped.get(mem.journeyId).push(mem);
+      });
+
+    const palette = ['#0ea5e9', '#f97316', '#22c55e', '#a855f7', '#ef4444', '#14b8a6'];
+    const paths = Array.from(grouped.entries())
+      .map(([journeyId, mems]) => {
+        const sorted = [...mems].sort((a, b) => (a.journeyStep || 0) - (b.journeyStep || 0));
+        const points = sorted.map((m) => ({
+          latitude: Number(m.latitude),
+          longitude: Number(m.longitude),
+          id: m.id,
+        }));
+        const color = palette[journeyId % palette.length];
+        return { id: journeyId, points, color, ownerHandle: sorted[0]?.ownerHandle };
+      })
+      .filter((p) => p.points.length >= 2);
+    setJourneyPaths(paths);
+  }, [filteredMemories]);
 
   const toggleVisibilityFilter = useCallback((value) => {
     setFilters((prev) => {
@@ -198,6 +237,7 @@ function MapPage() {
       media: 'all',
       search: '',
     });
+    setFocusBounds(null);
   }, []);
 
   const loadAllMemories = useCallback(async () => {
@@ -256,6 +296,38 @@ function MapPage() {
     setGuestPromptOpen(shouldPrompt);
   }, [status, user, isGuest]);
 
+  useEffect(() => {
+    if (user && !user.handle) {
+      setHandleModalOpen(true);
+      setHandleDraft('');
+      setHandleError('');
+      return;
+    }
+    setHandleModalOpen(false);
+    setHandleDraft(user?.handle || '');
+    setHandleError('');
+  }, [user]);
+
+  const handleHandleSubmit = async (event) => {
+    event.preventDefault();
+    const validationError = getHandleError(handleDraft);
+    if (validationError) {
+      setHandleError(validationError);
+      return;
+    }
+    setSavingHandle(true);
+    try {
+      await api.updateHandle(normalizeHandle(handleDraft));
+      await refresh();
+      setHandleModalOpen(false);
+      pushToast('Handle saved');
+    } catch (error) {
+      setHandleError(error.message || 'Unable to save handle');
+    } finally {
+      setSavingHandle(false);
+    }
+  };
+
   const handleCreateMemory = async (formData) => {
     setSavingMemory(true);
     try {
@@ -308,6 +380,60 @@ function MapPage() {
       }
     },
     [pushToast],
+  );
+
+  const viewMemoriesForHandle = useCallback(
+    (handleValue) => {
+      const normalized = normalizeHandle(handleValue);
+      if (!normalized) return;
+      setFilters((prev) => ({ ...prev, search: `@${normalized}` }));
+      setIsFilterOpen(true);
+
+      const targetMemories = allMemories.filter(
+        (memory) => normalizeHandle(memory.ownerHandle) === normalized,
+      );
+      if (targetMemories.length) {
+        const lats = targetMemories.map((mem) => Number(mem.latitude));
+        const lngs = targetMemories.map((mem) => Number(mem.longitude));
+        setFocusBounds({
+          minLat: Math.min(...lats),
+          maxLat: Math.max(...lats),
+          minLng: Math.min(...lngs),
+          maxLng: Math.max(...lngs),
+        });
+      } else {
+        setFocusBounds(null);
+      }
+      closePanel();
+    },
+    [allMemories, closePanel],
+  );
+
+  const viewJourneysForHandle = useCallback(
+    (handleValue) => {
+      const normalized = normalizeHandle(handleValue);
+      if (!normalized) return;
+      setFilters((prev) => ({ ...prev, search: `@${normalized}`, journey: 'journey' }));
+      setIsFilterOpen(true);
+
+      const targetMemories = allMemories.filter(
+        (memory) => memory.journeyId && normalizeHandle(memory.ownerHandle) === normalized,
+      );
+      if (targetMemories.length) {
+        const lats = targetMemories.map((mem) => Number(mem.latitude));
+        const lngs = targetMemories.map((mem) => Number(mem.longitude));
+        setFocusBounds({
+          minLat: Math.min(...lats),
+          maxLat: Math.max(...lats),
+          minLng: Math.min(...lngs),
+          maxLng: Math.max(...lngs),
+        });
+      } else {
+        setFocusBounds(null);
+      }
+      closePanel();
+    },
+    [allMemories, closePanel],
   );
 
   const handleVisibilityUpdate = useCallback(
@@ -463,6 +589,8 @@ function MapPage() {
       onSelectGroup: handleGroupSelection,
       onRequestPlace: () => setPlacingMemory(true),
       canPlaceMemory,
+      focusBounds,
+      journeyPaths,
     }),
     [
       userLocation,
@@ -471,6 +599,8 @@ function MapPage() {
       filteredMemories,
       handleGroupSelection,
       canPlaceMemory,
+      focusBounds,
+      journeyPaths,
     ],
   );
 
@@ -490,6 +620,35 @@ function MapPage() {
           onSearchChange={(value) => setFilters((prev) => ({ ...prev, search: value }))}
         />
       </div>
+
+      <Modal
+        isOpen={handleModalOpen}
+        onClose={user?.handle ? () => setHandleModalOpen(false) : undefined}
+        className="modal-content--narrow"
+      >
+        <h3>Pick a handle</h3>
+        <p className="memory-card__meta">
+          Handles are unique, public, and used for following. You can change it later if needed.
+        </p>
+        <form onSubmit={handleHandleSubmit} className="form-grid">
+          <Input
+            label="Handle"
+            value={handleDraft}
+            onChange={(event) => {
+              setHandleDraft(event.target.value);
+              setHandleError('');
+            }}
+            placeholder="@wanderer"
+            autoFocus
+          />
+          {handleError && <p className="error-text">{handleError}</p>}
+          <div className="form-actions">
+            <Button type="submit" variant="primary" disabled={savingHandle}>
+              {savingHandle ? 'Saving...' : 'Save handle'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
 
       <Modal
         isOpen={placingMemory}
@@ -529,7 +688,11 @@ function MapPage() {
         onSelectMemory={handleMemoryFromPanel}
       />
       <ProfilePanel isOpen={activePanel === 'profile'} onClose={closePanel} />
-      <FriendsPanel isOpen={activePanel === 'followers'} onClose={closePanel} />
+      <FriendsPanel
+        isOpen={activePanel === 'followers'}
+        onClose={closePanel}
+        onViewMemories={viewMemoriesForHandle}
+      />
 
       <Modal
         isOpen={Boolean(memoryGroupSelection)}
@@ -555,6 +718,26 @@ function MapPage() {
         memory={detailMemory}
         loading={detailLoading}
         onClose={() => setDetailMemory(null)}
+        onViewProfile={(handleValue) => openUserProfilePanel(handleValue || '')}
+      />
+
+      <UserProfilePanel
+        isOpen={activePanel === 'userProfile'}
+        handle={userProfileHandle}
+        isFollowing={userProfileActions.isFollowing}
+        onFollow={userProfileActions.onFollow}
+        onUnfollow={userProfileActions.onUnfollow}
+        onViewMemories={(profile) => {
+          if (profile?.handle) {
+            viewMemoriesForHandle(profile.handle);
+          }
+        }}
+        onViewJourneys={(profile) => {
+          if (profile?.handle) {
+            viewJourneysForHandle(profile.handle);
+          }
+        }}
+        onClose={() => closePanel()}
       />
 
       <Modal isOpen={guestPromptOpen} onClose={() => {}}>

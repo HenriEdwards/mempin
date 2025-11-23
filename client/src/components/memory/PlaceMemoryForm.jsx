@@ -20,7 +20,7 @@ function PlaceMemoryForm({ coords, onSubmit, onCancel, loading, suggestedTags = 
     shortDescription: '',
     body: '',
     tags: '',
-    targetEmails: '',
+    targetHandles: '',
     visibility: 'public',
     radiusM: 50,
     journeyId: '',
@@ -97,7 +97,7 @@ function PlaceMemoryForm({ coords, onSubmit, onCancel, loading, suggestedTags = 
     payload.append('shortDescription', form.shortDescription.trim());
     payload.append('body', form.body.trim());
     payload.append('tags', form.tags);
-    payload.append('targetEmails', form.targetEmails);
+    payload.append('targetHandles', form.targetHandles);
     payload.append('visibility', form.visibility);
     payload.append('radiusM', String(form.radiusM));
     payload.append('latitude', coords.latitude);
@@ -180,10 +180,10 @@ function PlaceMemoryForm({ coords, onSubmit, onCancel, loading, suggestedTags = 
           </div>
         )}
         <Input
-          label="Targeted recipients (emails)"
-          value={form.targetEmails}
-          placeholder="friend@example.com, another@example.com"
-          onChange={(event) => updateField('targetEmails', event.target.value)}
+          label="Targeted recipients (handles)"
+          value={form.targetHandles}
+          placeholder="@friend, another_friend"
+          onChange={(event) => updateField('targetHandles', event.target.value)}
         />
       </div>
 

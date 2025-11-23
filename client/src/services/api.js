@@ -57,16 +57,17 @@ const api = {
       body: JSON.stringify(coords),
     }),
   getFollowers: () => request('/api/followers'),
-  addFollower: (email) =>
+  addFollower: (handle) =>
     request('/api/followers', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ handle }),
     }),
   removeFollower: (userId) =>
     request(`/api/followers/${userId}`, {
       method: 'DELETE',
     }),
+  getFollowerSuggestions: () => request('/api/followers/suggestions'),
   getJourneys: () => request('/api/journeys'),
   getJourneyMemories: (journeyId) => request(`/api/journeys/${journeyId}/memories`),
   updateJourneyVisibility: (journeyId, visibility) =>
@@ -81,6 +82,13 @@ const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     }),
+  updateHandle: (handle) =>
+    request('/api/users/me/handle', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ handle }),
+    }),
+  getUserProfile: (handle) => request(`/api/users/handle/${handle}`),
 };
 
 export default api;
