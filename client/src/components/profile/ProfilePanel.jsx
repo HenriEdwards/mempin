@@ -40,10 +40,13 @@ function ProfilePanel({
   }, [isOpen, user]);
 
   const profileHandle = user?.handle || '';
+  const profilePageClassName = user
+    ? 'profile-page profile-page--public'
+    : 'profile-page profile-page--public profile-page--guest';
 
   return (
     <SlidingPanel isOpen={isOpen} onClose={onClose} title="" hideHeader width="480px">
-      <div className="profile-page profile-page--public">
+      <div className={profilePageClassName}>
         {!user ? (
           <Button
             variant="primary"

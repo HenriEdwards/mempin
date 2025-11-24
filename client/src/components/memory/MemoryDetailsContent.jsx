@@ -1,3 +1,4 @@
+import { useMemo, useState } from 'react';
 import MemoryMiniMap from './MemoryMiniMap.jsx';
 import Button from '../ui/Button.jsx';
 
@@ -11,9 +12,39 @@ function formatDate(value) {
 
 function MemoryDetailsContent({ memory, onGenerateQR, onViewProfile }) {
   if (!memory) return null;
-  const imageAssets = (memory.assets || []).filter((asset) => asset.type === 'image');
+  const [lightboxIndex, setLightboxIndex] = useState(null);
+  const imageAssets = useMemo(
+    () => (memory.assets || []).filter((asset) => asset.type === 'image'),
+    [memory.assets],
+  );
   const audioAssets = (memory.assets || []).filter((asset) => asset.type === 'audio');
   const shareUrl = `${window.location.origin}/m/${memory.id}`;
+
+  const openLightbox = (index) => {
+    setLightboxIndex(index);
+  };
+
+  const closeLightbox = () => {
+    setLightboxIndex(null);
+  };
+
+  const showPrev = () => {
+    if (!imageAssets.length) return;
+    setLightboxIndex((prev) => {
+      const next = typeof prev === 'number' ? (prev - 1 + imageAssets.length) % imageAssets.length : 0;
+      return next;
+    });
+  };
+
+  const showNext = () => {
+    if (!imageAssets.length) return;
+    setLightboxIndex((prev) => {
+      const next = typeof prev === 'number' ? (prev + 1) % imageAssets.length : 0;
+      return next;
+    });
+  };
+
+  const activeImage = typeof lightboxIndex === 'number' ? imageAssets[lightboxIndex] : null;
 
   return (
     <div className="memory-details">
@@ -93,8 +124,15 @@ function MemoryDetailsContent({ memory, onGenerateQR, onViewProfile }) {
         <div className="memory-details__section">
           <h4>Gallery</h4>
           <div className="memory-details__gallery">
-            {imageAssets.map((asset) => (
-              <img key={asset.id} src={asset.url} alt="" />
+            {imageAssets.map((asset, index) => (
+              <button
+                key={asset.id}
+                type="button"
+                className="memory-details__thumb"
+                onClick={() => openLightbox(index)}
+              >
+                <img src={asset.url} alt="" />
+              </button>
             ))}
           </div>
         </div>
@@ -105,6 +143,43 @@ function MemoryDetailsContent({ memory, onGenerateQR, onViewProfile }) {
           {audioAssets.map((asset) => (
             <audio key={asset.id} controls src={asset.url} />
           ))}
+        </div>
+      )}
+      {activeImage && (
+        <div className="image-lightbox" role="presentation" onClick={closeLightbox}>
+          <div className="image-lightbox__inner" onClick={(event) => event.stopPropagation()}>
+            <button
+              type="button"
+              className="image-lightbox__close"
+              aria-label="Close"
+              onClick={closeLightbox}
+            >
+              ×
+            </button>
+            {imageAssets.length > 1 && (
+              <>
+                <button
+                  type="button"
+                  className="image-lightbox__nav image-lightbox__nav--prev"
+                  aria-label="Previous image"
+                  onClick={showPrev}
+                >
+                  ‹
+                </button>
+                <button
+                  type="button"
+                  className="image-lightbox__nav image-lightbox__nav--next"
+                  aria-label="Next image"
+                  onClick={showNext}
+                >
+                  ›
+                </button>
+              </>
+            )}
+            <div className="image-lightbox__media">
+              <img src={activeImage.url} alt={memory.title || 'Memory image'} />
+            </div>
+          </div>
         </div>
       )}
     </div>

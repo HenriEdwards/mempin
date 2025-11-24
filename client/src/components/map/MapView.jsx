@@ -27,6 +27,66 @@ const userMarkerIcon = L.icon({
   shadowSize: [41, 41],
 });
 
+const MEMORY_PIN_STYLES = {
+  text: { fill: '#3b82f6', stroke: '#1d4ed8' }, // blue
+  image: { fill: '#a855f7', stroke: '#7e22ce' }, // purple
+  audio: { fill: '#22c55e', stroke: '#15803d' }, // green
+  both: { fill: '#ef4444', stroke: '#b91c1c' }, // red
+};
+
+const memoryIconCache = new Map();
+
+function getMemoryPinIcon(variant = 'text') {
+  const key = MEMORY_PIN_STYLES[variant] ? variant : 'text';
+  if (memoryIconCache.has(key)) return memoryIconCache.get(key);
+
+  const { fill, stroke } = MEMORY_PIN_STYLES[key];
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="25" height="41" viewBox="0 0 25 41"><path fill="${fill}" stroke="${stroke}" stroke-width="2" d="M12.5 1C6.29 1 1 6.65 1 13.5 1 21.7 12.5 40 12.5 40S24 21.7 24 13.5C24 6.65 18.71 1 12.5 1Z"/><circle cx="12.5" cy="13" r="5" fill="#ffffff" stroke="${stroke}" stroke-width="1.4"/></svg>`;
+  const icon = L.icon({
+    iconUrl: `data:image/svg+xml,${encodeURIComponent(svg)}`,
+    iconRetinaUrl: `data:image/svg+xml,${encodeURIComponent(svg)}`,
+    shadowUrl: userIconShadow,
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34],
+    shadowSize: [41, 41],
+  });
+
+  memoryIconCache.set(key, icon);
+  return icon;
+}
+
+function getMemoryMediaKind(memory) {
+  if (!memory) return 'text';
+  const assets = memory.assets || [];
+  const imageCount =
+    Number(memory.imageCount ?? assets.filter((asset) => asset.type === 'image').length) || 0;
+  const audioCount =
+    Number(memory.audioCount ?? assets.filter((asset) => asset.type === 'audio').length) || 0;
+
+  const hasImage = imageCount > 0;
+  const hasAudio = audioCount > 0;
+  const hasUnknownMedia =
+    (memory.hasMedia || assets.length > 0) && !hasImage && !hasAudio;
+
+  if (hasImage && hasAudio) return 'both';
+  if (hasImage) return 'image';
+  if (hasAudio) return 'audio';
+  if (hasUnknownMedia) return 'both';
+  return 'text';
+}
+
+function getGroupMediaVariant(memories = []) {
+  if (!memories.length) return 'text';
+  const variants = new Set(memories.map(getMemoryMediaKind));
+  if (variants.size === 1) return [...variants][0];
+  if (variants.has('both')) return 'both';
+  if (variants.has('image') && variants.has('audio')) return 'both';
+  if (variants.has('image')) return 'image';
+  if (variants.has('audio')) return 'audio';
+  return 'text';
+}
+
 const MIN_VISUAL_RADIUS = 60;
 const MAX_VISUAL_RADIUS = 20000;
 const BASE_ZOOM_FOR_SCALING = 16;
@@ -223,16 +283,19 @@ function FlatMapView({
           : `Unlocked ${group.memories[0].timesFound} times\nLast: ${formatRelative(
               group.memories[0].lastUnlockedAt,
             )}`;
-      const marker = L.marker(latLng).bindTooltip(tooltipText, {
+      const variant = getGroupMediaVariant(group.memories);
+      const marker = L.marker(latLng, { icon: getMemoryPinIcon(variant) }).bindTooltip(tooltipText, {
         direction: 'top',
       });
       marker.on('click', () => onSelectGroup?.(group));
       marker.addTo(memoriesLayerRef.current);
 
+      const pinStyle = MEMORY_PIN_STYLES[variant] || MEMORY_PIN_STYLES.text;
       const circle = L.circle(latLng, {
         radius,
-        color: '#f97316',
+        color: pinStyle.stroke,
         opacity: 0.35,
+        fillColor: pinStyle.fill,
         fillOpacity: 0.15,
       });
       circle.on('click', () => onSelectGroup?.(group));

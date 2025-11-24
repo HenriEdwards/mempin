@@ -11,6 +11,7 @@ import MemoryDetailsModal from '../components/memory/MemoryDetailsModal.jsx';
 import TopRightActions from '../components/layout/TopRightActions.jsx';
 import ProfilePanel from '../components/profile/ProfilePanel.jsx';
 import UserProfilePanel from '../components/profile/UserProfilePanel.jsx';
+import SlidingPanel from '../components/layout/SlidingPanel.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useUI } from '../context/UIContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
@@ -665,16 +666,20 @@ function MapPage() {
         journeyMemories={journeyMemories}
         journeyVisibilityMap={journeyVisibilityMap}
       />
-      <Modal
+      <SlidingPanel
         isOpen={Boolean(memoryGroupSelection)}
         onClose={() => setMemoryGroupSelection(null)}
+        title="Memories in this area"
+        side="left"
+        width="480px"
+        showCloseButton
       >
         <OverlappingMemoryPanel
           group={memoryGroupSelection}
           onClose={() => setMemoryGroupSelection(null)}
           onSelectMemory={handleMemoryFromGroup}
         />
-      </Modal>
+      </SlidingPanel>
 
       <UnlockDialog
         memory={selectedMemory}

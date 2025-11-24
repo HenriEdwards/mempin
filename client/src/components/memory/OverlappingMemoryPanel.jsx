@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import Input from '../ui/Input.jsx';
-import Button from '../ui/Button.jsx';
 
 function MemoryRow({ memory, onSelect }) {
   const snippet = memory.body
@@ -49,14 +48,10 @@ function OverlappingMemoryPanel({ group, onSelectMemory, onClose }) {
     <div className="memory-selection">
       <div className="memory-selection__header">
         <div>
-          <h3>Memories in this area</h3>
-          <p>
+          <p className="memory-card__meta" style={{ marginBottom: '0.25rem' }}>
             Showing {filteredMemories.length} of {memories.length} memories
           </p>
         </div>
-        <Button variant="ghost" onClick={onClose}>
-          Close
-        </Button>
       </div>
       <Input
         placeholder="Search memories"

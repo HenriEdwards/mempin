@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
 import Modal from '../ui/Modal.jsx';
+import SlidingPanel from '../layout/SlidingPanel.jsx';
 import MemoryDetailsContent from './MemoryDetailsContent.jsx';
 
 function MemoryDetailsModal({ memory, onClose, loading = false, onViewProfile }) {
@@ -20,9 +21,18 @@ function MemoryDetailsModal({ memory, onClose, loading = false, onViewProfile })
     return null;
   }
 
+  const isOpen = Boolean(memory) || loading;
+
   return (
     <>
-      <Modal isOpen={Boolean(memory) || loading} onClose={onClose}>
+      <SlidingPanel
+        isOpen={isOpen}
+        onClose={onClose}
+        title="Memory"
+        side="left"
+        width="520px"
+        showCloseButton
+      >
         {loading ? (
           <p>Loading memory...</p>
         ) : (
@@ -32,7 +42,7 @@ function MemoryDetailsModal({ memory, onClose, loading = false, onViewProfile })
             onViewProfile={onViewProfile}
           />
         )}
-      </Modal>
+      </SlidingPanel>
       <Modal isOpen={Boolean(qrValue)} onClose={() => setQrValue(null)}>
         <div className="qr-modal">
           <h4>Scan to unlock</h4>
