@@ -16,6 +16,12 @@ const { normalizeHandle, isValidHandle } = require('../utils/handles');
 
 const allowedVisibility = new Set(['public', 'private', 'unlisted', 'followers']);
 
+function isMemoryExpired(memory) {
+  if (!memory || !memory.expiresAt) return false;
+  const expiresAt = new Date(memory.expiresAt);
+  return Number.isNaN(expiresAt.getTime()) ? false : expiresAt.getTime() <= Date.now();
+}
+
 function parseNumber(value) {
   const parsed = typeof value === 'number' ? value : parseFloat(value);
   return Number.isNaN(parsed) ? null : parsed;
@@ -30,7 +36,7 @@ function getUploadedFilesCollection(filesInput) {
     return filesInput;
   }
 
-  const buckets = ['images', 'audio', 'assets'];
+  const buckets = ['images', 'audio', 'video', 'assets'];
   return buckets.flatMap((key) => filesInput[key] || []);
 }
 
@@ -125,6 +131,7 @@ const createMemory = [
   memoryAssetUpload.fields([
     { name: 'images', maxCount: 5 },
     { name: 'audio', maxCount: 2 },
+    { name: 'video', maxCount: 2 },
     { name: 'assets', maxCount: 8 },
   ]),
   asyncHandler(async (req, res) => {
@@ -133,7 +140,7 @@ const createMemory = [
     const radiusM = clampRadius(parseNumber(req.body.radiusM) || 50);
     const visibility = allowedVisibility.has(req.body.visibility)
       ? req.body.visibility
-    : 'public';
+      : 'public';
     const title = req.body.title ? String(req.body.title).trim() : '';
     const shortDescription = req.body.shortDescription
       ? String(req.body.shortDescription).trim().slice(0, 100)
@@ -149,6 +156,10 @@ const createMemory = [
     const newJourneyDescription = req.body.newJourneyDescription
       ? String(req.body.newJourneyDescription).trim()
       : '';
+    const expiresAt =
+      req.body.expiresAt && String(req.body.expiresAt).trim()
+        ? new Date(req.body.expiresAt)
+        : null;
     let journeyId = parseNumber(req.body.journeyId);
     let journeyStep = parseNumber(req.body.journeyStep);
 
@@ -158,6 +169,12 @@ const createMemory = [
 
     if (latitude === null || longitude === null) {
       return res.status(400).json({ error: 'Valid coordinates are required' });
+    }
+
+    if (expiresAt && (Number.isNaN(expiresAt.getTime()) || expiresAt.getTime() <= Date.now())) {
+      return res
+        .status(400)
+        .json({ error: 'Expiry must be a valid future date/time or left blank for forever' });
     }
 
     if (newJourneyTitle) {
@@ -187,6 +204,7 @@ const createMemory = [
       latitude,
       longitude,
       radiusM,
+      expiresAt,
     });
 
     if (targetHandles.length) {
@@ -242,6 +260,9 @@ const updateMemoryVisibility = asyncHandler(async (req, res) => {
   const memory = await memoryModel.getMemoryById(memoryId);
   if (!memory || !memory.isActive) {
     return res.status(404).json({ error: 'Memory not found' });
+  }
+  if (isMemoryExpired(memory)) {
+    return res.status(410).json({ error: 'Memory has expired' });
   }
   if (memory.ownerId !== req.user.id) {
     return res.status(403).json({ error: 'Not allowed to update this memory' });
@@ -372,6 +393,9 @@ const getMemoryDetails = asyncHandler(async (req, res) => {
   const memory = await memoryModel.getMemoryById(memoryId);
   if (!memory || !memory.isActive) {
     return res.status(404).json({ error: 'Memory not found' });
+  }
+  if (isMemoryExpired(memory) && memory.ownerId !== req.user.id) {
+    return res.status(410).json({ error: 'Memory has expired' });
   }
 
   let unlockedAt = memory.createdAt;

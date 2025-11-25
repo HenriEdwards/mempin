@@ -20,6 +20,7 @@ function UserProfilePanel({
   onOpenProfile,
   journeyMemories = {},
   journeyVisibilityMap = {},
+  onOpenJourneyPanel,
 }) {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -71,11 +72,13 @@ function UserProfilePanel({
               profileHandle={profile?.handle || ''}
               stats={profile?.stats || {}}
               placedMemories={placedMemories}
+              foundMemories={foundMemories}
               journeys={journeys}
               journeyMemories={journeyMemories}
               journeyVisibilityMap={journeyVisibilityMap}
               onSelectMemory={onSelectMemory}
               onOpenProfile={onOpenProfile}
+              onOpenJourneyPanel={onOpenJourneyPanel}
               followingTabProps={{ hideSuggestions: true, profileHandle: profile?.handle || '' }}
             />
           </>

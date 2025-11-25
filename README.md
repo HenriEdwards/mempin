@@ -1,32 +1,19 @@
 features in consideration
 
--> Choice to have memories unlocked by: 
-  1. being in the location. 
-  2. anyone in the world can view it
-  3. ?
-  mmm ?
+-> add video too
+-> maybe let the user add links ?
+-> go public on a certain date
+-> anonymous memory
 
--> can lock journeys / memories behind a paywall ? users can make money ? 
+-> lock memory behind a password
+-> memory pre-unlocked (person doesnt have to be in the location to unlock it, enables users to browse the world and look at memories all over)
 
--> Apply usernames (like X)
--> login with X ?
--> login with github ? 
-
-chatgpt suggestions
--> 🔥 3. Heatmap mode
-
-  Toggle: markers → heatmap overlay.
-  Great for global density.
+-> share a publish a memory
+-> share buttons on memory view
+-> open memory on google maps
+-> open collection on google maps
 
 
-firneds 
+-> diif login ways ?
 
-"Not following anyone yet" text, suggest people in same continent, 
-
--> 🔥 5. Timeline playback
-
-Play memories in chronological order on the map → little animation.
-
--> 🔥 6. Journey ribbons
-
-If memories share a journey_id, draw a soft line between them like Google Maps routes.
+-> If memories share a journey_id, draw a soft line between them like Google Maps routes.

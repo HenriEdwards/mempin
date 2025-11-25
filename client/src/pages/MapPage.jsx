@@ -82,6 +82,8 @@ function MapPage() {
   const [journeyPaths, setJourneyPaths] = useState([]);
   const [userMemoriesTarget, setUserMemoriesTarget] = useState(null);
   const [userJourneysTarget, setUserJourneysTarget] = useState(null);
+  const [journeyPanel, setJourneyPanel] = useState(null);
+  const [journeyPanelSearch, setJourneyPanelSearch] = useState('');
   const suggestedTags = useMemo(() => {
     const tagSet = new Set();
     placedMemories.forEach((memory) => {
@@ -423,6 +425,13 @@ function MapPage() {
     }
   }, [activePanel]);
 
+  useEffect(() => {
+    if (activePanel !== 'profile' && activePanel !== 'userProfile') {
+      setJourneyPanel(null);
+      setJourneyPanelSearch('');
+    }
+  }, [activePanel]);
+
   const fetchMemoryDetails = useCallback(
     async (memoryId) => {
       setDetailLoading(true);
@@ -460,6 +469,33 @@ function MapPage() {
       setUnlocking(false);
     }
   };
+
+  const openJourneyPanel = useCallback(
+    ({ journeyId, journeyTitle, ownerHandle }) => {
+      if (!journeyId) {
+        setJourneyPanel(null);
+        setJourneyPanelSearch('');
+        return;
+      }
+      const normalized = normalizeHandle(ownerHandle || '');
+      const memoriesInJourney = allMemories
+        .filter(
+          (memory) =>
+            memory.journeyId === journeyId &&
+            (!normalized || normalizeHandle(memory.ownerHandle) === normalized),
+        )
+        .sort((a, b) => (a.journeyStep || 0) - (b.journeyStep || 0));
+      setJourneyPanel({
+        journeyId,
+        journeyTitle: journeyTitle || 'Collection',
+        ownerHandle: normalized,
+        memories: memoriesInJourney,
+      });
+      setJourneyPanelSearch('');
+      setMemoryGroupSelection(null);
+    },
+    [allMemories],
+  );
 
   const handleMemoryFromPanel = useCallback(
     (memory) => {
@@ -665,7 +701,103 @@ function MapPage() {
         onOpenProfile={openProfileFromList}
         journeyMemories={journeyMemories}
         journeyVisibilityMap={journeyVisibilityMap}
+        onOpenJourneyPanel={({ journeyId, journeyTitle }) =>
+          openJourneyPanel({ journeyId, journeyTitle, ownerHandle: normalizedUserHandle })
+        }
       />
+      <SlidingPanel
+        isOpen={Boolean(journeyPanel)}
+        onClose={() => openJourneyPanel({ journeyId: null })}
+        title={journeyPanel?.journeyTitle || 'Collection'}
+        side="left"
+        width="480px"
+        showCloseButton
+      >
+        {journeyPanel ? (
+          <>
+            <Input
+              placeholder="Search memories in this collection..."
+              value={journeyPanelSearch}
+              onChange={(event) => setJourneyPanelSearch(event.target.value)}
+            />
+            <div className="profile-memory-list" style={{ marginTop: '0.75rem' }}>
+              {journeyPanel.memories
+                .filter((memory) => {
+                  if (!journeyPanelSearch.trim()) return true;
+                  const term = journeyPanelSearch.toLowerCase();
+                  return `${memory.title} ${memory.shortDescription || ''} ${memory.body || ''}`
+                    .toLowerCase()
+                    .includes(term);
+                })
+                .map((memory) => {
+                  const assets = memory.assets || [];
+                  const imageCount =
+                    memory.imageCount ?? assets.filter((asset) => asset.type === 'image').length;
+                  const audioCount =
+                    memory.audioCount ?? assets.filter((asset) => asset.type === 'audio').length;
+                  const videoCount =
+                    memory.videoCount ?? assets.filter((asset) => asset.type === 'video').length;
+                  const expiryText = memory.expiresAt
+                    ? new Intl.DateTimeFormat('en', { dateStyle: 'medium' }).format(
+                        new Date(memory.expiresAt),
+                      )
+                    : 'Forever';
+                  return (
+                    <button
+                      key={memory.id}
+                      type="button"
+                      className="profile-memory-item"
+                      onClick={() => {
+                        handleProfileMemoryClick(memory);
+                        openJourneyPanel({ journeyId: null });
+                      }}
+                    >
+                      <div className="profile-memory-row">
+                        <div className="profile-memory-title">{memory.title}</div>
+                        <span className="profile-memory-pill">Step {memory.journeyStep || '-'}</span>
+                        <span className="profile-memory-pill">{memory.visibility}</span>
+                        <span className="profile-memory-pill">Found {memory.timesFound ?? 0}</span>
+                        <span className="profile-memory-pill">{expiryText}</span>
+                      </div>
+                      <div className="profile-memory-meta profile-memory-assets">
+                        <span className="profile-memory-asset">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                            <rect x="3" y="3" width="18" height="14" rx="2" ry="2" />
+                            <circle cx="8.5" cy="8" r="1.5" />
+                            <path d="M21 14l-5-5-4 4-2-2-4 4" />
+                          </svg>
+                          <span>{imageCount}</span>
+                        </span>
+                        <span className="profile-memory-asset">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                            <path d="M5 4h4l7 4v8l-7 4H5V4Z" />
+                            <path d="M15 9v6" />
+                          </svg>
+                          <span>{audioCount}</span>
+                        </span>
+                        <span className="profile-memory-asset">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                            <path d="M4 6a2 2 0 0 1 2-2h8.5a2 2 0 0 1 1.6.8l3.5 4.2a2 2 0 0 1 0 2.6l-3.5 4.2a2 2 0 0 1-1.6.8H6a2 2 0 0 1-2-2V6Z" />
+                            <path d="m12 9.5-2.5 2L12 13" />
+                          </svg>
+                          <span>{videoCount}</span>
+                        </span>
+                      </div>
+                      {memory.createdAt && (
+                        <div className="profile-memory-sub mt-4">
+                          {new Date(memory.createdAt).toLocaleString()}
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              {journeyPanel.memories.length === 0 && (
+                <div className="empty-state">No memories in this collection.</div>
+              )}
+            </div>
+          </>
+        ) : null}
+      </SlidingPanel>
       <SlidingPanel
         isOpen={Boolean(memoryGroupSelection)}
         onClose={() => setMemoryGroupSelection(null)}
@@ -720,6 +852,9 @@ function MapPage() {
         journeyMemories={userJourneysData.memMap}
         journeyVisibilityMap={userJourneysData.visibilityMap}
         onOpenProfile={openProfileFromList}
+        onOpenJourneyPanel={({ journeyId, journeyTitle }) =>
+          openJourneyPanel({ journeyId, journeyTitle, ownerHandle: userMemoriesTarget?.handle })
+        }
         onClose={() => goBackFromUserProfile()}
       />
 

@@ -31,6 +31,7 @@ const MEMORY_PIN_STYLES = {
   text: { fill: '#3b82f6', stroke: '#1d4ed8' }, // blue
   image: { fill: '#a855f7', stroke: '#7e22ce' }, // purple
   audio: { fill: '#22c55e', stroke: '#15803d' }, // green
+  video: { fill: '#facc15', stroke: '#d97706' }, // yellow
   both: { fill: '#ef4444', stroke: '#b91c1c' }, // red
 };
 
@@ -63,12 +64,16 @@ function getMemoryMediaKind(memory) {
     Number(memory.imageCount ?? assets.filter((asset) => asset.type === 'image').length) || 0;
   const audioCount =
     Number(memory.audioCount ?? assets.filter((asset) => asset.type === 'audio').length) || 0;
+  const videoCount =
+    Number(memory.videoCount ?? assets.filter((asset) => asset.type === 'video').length) || 0;
 
   const hasImage = imageCount > 0;
   const hasAudio = audioCount > 0;
+  const hasVideo = videoCount > 0;
   const hasUnknownMedia =
-    (memory.hasMedia || assets.length > 0) && !hasImage && !hasAudio;
+    (memory.hasMedia || assets.length > 0) && !hasImage && !hasAudio && !hasVideo;
 
+  if (hasVideo) return 'video';
   if (hasImage && hasAudio) return 'both';
   if (hasImage) return 'image';
   if (hasAudio) return 'audio';
@@ -79,6 +84,7 @@ function getMemoryMediaKind(memory) {
 function getGroupMediaVariant(memories = []) {
   if (!memories.length) return 'text';
   const variants = new Set(memories.map(getMemoryMediaKind));
+  if (variants.has('video')) return 'video';
   if (variants.size === 1) return [...variants][0];
   if (variants.has('both')) return 'both';
   if (variants.has('image') && variants.has('audio')) return 'both';
@@ -92,6 +98,9 @@ const MAX_VISUAL_RADIUS = 20000;
 const BASE_ZOOM_FOR_SCALING = 16;
 const ZOOM_SCALE_EXPONENT = 0.6;
 const MERGE_BASE_DISTANCE_METERS = 60;
+// Allow one wrapped copy on each horizontal side (3 worlds wide)
+const WORLD_BOUNDS = L.latLngBounds([-85, -540], [85, 540]);
+const MAIN_WORLD_BOUNDS = L.latLngBounds([-85, -180], [85, 180]);
 
 function formatRelative(value) {
   if (!value) return 'Never';
@@ -150,11 +159,17 @@ function FlatMapView({
     mapRef.current = L.map(mapContainerRef.current, {
       center: [0, 0],
       zoom: 2,
+      minZoom: 2,
+      maxZoom: 19,
+      maxBounds: WORLD_BOUNDS,
+      maxBoundsViscosity: 1,
     });
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution:
         '&copy; <a href="http://osm.org/copyright">OpenStreetMap</a> contributors',
+      noWrap: false,
+      maxZoom: 19,
     }).addTo(mapRef.current);
 
     userLayerRef.current = L.layerGroup().addTo(mapRef.current);
@@ -192,6 +207,31 @@ function FlatMapView({
     map.on('zoomend', updateZoom);
     updateZoom();
     return () => map.off('zoomend', updateZoom);
+  }, [mapReady]);
+
+  useEffect(() => {
+    if (!mapReady || !mapRef.current) return undefined;
+    const map = mapRef.current;
+
+    const clampCenterWithinMainWorld = () => {
+      const center = map.getCenter();
+      const clampedLat = Math.min(
+        Math.max(center.lat, MAIN_WORLD_BOUNDS.getSouth()),
+        MAIN_WORLD_BOUNDS.getNorth(),
+      );
+      // Normalize longitude into [-180, 180] so the center never leaves the primary world
+      let normalizedLng = center.lng;
+      if (normalizedLng < -180 || normalizedLng > 180) {
+        normalizedLng = ((((normalizedLng + 180) % 360) + 360) % 360) - 180;
+      }
+
+      if (clampedLat !== center.lat || normalizedLng !== center.lng) {
+        map.setView([clampedLat, normalizedLng], map.getZoom(), { animate: false });
+      }
+    };
+
+    map.on('moveend', clampCenterWithinMainWorld);
+    return () => map.off('moveend', clampCenterWithinMainWorld);
   }, [mapReady]);
 
   const displayGroups = useMemo(() => {

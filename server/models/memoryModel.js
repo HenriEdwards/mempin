@@ -31,10 +31,12 @@ function mapMemory(row = {}) {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     timesFound: row.times_found || 0,
+    expiresAt: row.expires_at || null,
     hasMedia: row.has_media ? row.has_media > 0 : false,
     imageCount,
-    audioCount,
-    lastUnlockedAt: row.last_unlocked_at || null,
+  audioCount,
+  videoCount: Number(row.video_count ?? row.videoCount ?? 0) || 0,
+  lastUnlockedAt: row.last_unlocked_at || null,
   };
 }
 
@@ -50,11 +52,12 @@ async function createMemory({
   latitude,
   longitude,
   radiusM,
+  expiresAt,
 }) {
   const result = await db.query(
     `INSERT INTO memories
-    (owner_id, journey_id, journey_step, title, short_description, body, tags, visibility, latitude, longitude, radius_m)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    (owner_id, journey_id, journey_step, title, short_description, body, tags, visibility, latitude, longitude, radius_m, expires_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       ownerId,
       journeyId || null,
@@ -67,6 +70,7 @@ async function createMemory({
       latitude,
       longitude,
       radiusM,
+      expiresAt || null,
     ],
   );
 
@@ -85,6 +89,7 @@ async function getMemoryById(id) {
       COALESCE(ma.asset_count, 0) AS has_media,
       COALESCE(mac.image_count, 0) AS image_count,
       COALESCE(mac.audio_count, 0) AS audio_count,
+      COALESCE(mac.video_count, 0) AS video_count,
       COALESCE(js.step_count, NULL) AS journey_step_count
      FROM memories m
     INNER JOIN users u ON u.id = m.owner_id
@@ -108,7 +113,8 @@ async function getMemoryById(id) {
        SELECT
          memory_id,
          SUM(CASE WHEN type = 'image' THEN 1 ELSE 0 END) AS image_count,
-         SUM(CASE WHEN type = 'audio' THEN 1 ELSE 0 END) AS audio_count
+         SUM(CASE WHEN type = 'audio' THEN 1 ELSE 0 END) AS audio_count,
+         SUM(CASE WHEN type = 'video' THEN 1 ELSE 0 END) AS video_count
        FROM memory_assets
        GROUP BY memory_id
      ) mac ON mac.memory_id = m.id
@@ -132,6 +138,7 @@ async function getPlacedMemories(ownerId) {
       COALESCE(ma.asset_count, 0) AS has_media,
       COALESCE(mac.image_count, 0) AS image_count,
       COALESCE(mac.audio_count, 0) AS audio_count,
+      COALESCE(mac.video_count, 0) AS video_count,
       COALESCE(js.step_count, NULL) AS journey_step_count
      FROM memories m
      INNER JOIN users u ON u.id = m.owner_id
@@ -149,7 +156,8 @@ async function getPlacedMemories(ownerId) {
        SELECT
          memory_id,
          SUM(CASE WHEN type = 'image' THEN 1 ELSE 0 END) AS image_count,
-         SUM(CASE WHEN type = 'audio' THEN 1 ELSE 0 END) AS audio_count
+         SUM(CASE WHEN type = 'audio' THEN 1 ELSE 0 END) AS audio_count,
+         SUM(CASE WHEN type = 'video' THEN 1 ELSE 0 END) AS video_count
        FROM memory_assets
        GROUP BY memory_id
      ) mac ON mac.memory_id = m.id
@@ -198,6 +206,7 @@ async function getUnlockedMemories(userId) {
        GROUP BY journey_id
      ) js ON js.journey_id = m.journey_id
      WHERE mu.user_id = ?
+       AND (m.expires_at IS NULL OR m.expires_at > NOW())
      ORDER BY mu.unlocked_at DESC`,
     [userId],
   );
@@ -221,6 +230,7 @@ async function getNearbyMemories({ latitude, longitude, radiusMeters }) {
       COALESCE(ma.asset_count, 0) AS has_media,
       COALESCE(mac.image_count, 0) AS image_count,
       COALESCE(mac.audio_count, 0) AS audio_count,
+      COALESCE(mac.video_count, 0) AS video_count,
       COALESCE(js.step_count, NULL) AS journey_step_count
      FROM memories m
      INNER JOIN users u ON u.id = m.owner_id
@@ -238,7 +248,8 @@ async function getNearbyMemories({ latitude, longitude, radiusMeters }) {
        SELECT
          memory_id,
          SUM(CASE WHEN type = 'image' THEN 1 ELSE 0 END) AS image_count,
-         SUM(CASE WHEN type = 'audio' THEN 1 ELSE 0 END) AS audio_count
+         SUM(CASE WHEN type = 'audio' THEN 1 ELSE 0 END) AS audio_count,
+         SUM(CASE WHEN type = 'video' THEN 1 ELSE 0 END) AS video_count
        FROM memory_assets
        GROUP BY memory_id
      ) mac ON mac.memory_id = m.id
@@ -249,6 +260,7 @@ async function getNearbyMemories({ latitude, longitude, radiusMeters }) {
        GROUP BY journey_id
      ) js ON js.journey_id = m.journey_id
      WHERE m.is_active = 1
+       AND (m.expires_at IS NULL OR m.expires_at > NOW())
        AND m.latitude BETWEEN ? AND ?
        AND m.longitude BETWEEN ? AND ?`,
     [bounds.minLat, bounds.maxLat, bounds.minLng, bounds.maxLng],
@@ -279,6 +291,7 @@ async function getAllActiveMemories() {
       COALESCE(ma.asset_count, 0) AS has_media,
       COALESCE(mac.image_count, 0) AS image_count,
       COALESCE(mac.audio_count, 0) AS audio_count,
+      COALESCE(mac.video_count, 0) AS video_count,
       COALESCE(js.step_count, NULL) AS journey_step_count
      FROM memories m
      INNER JOIN users u ON u.id = m.owner_id
@@ -292,11 +305,12 @@ async function getAllActiveMemories() {
        FROM memory_assets
        GROUP BY memory_id
      ) ma ON ma.memory_id = m.id
-     LEFT JOIN (
-       SELECT
-         memory_id,
-         SUM(CASE WHEN type = 'image' THEN 1 ELSE 0 END) AS image_count,
-         SUM(CASE WHEN type = 'audio' THEN 1 ELSE 0 END) AS audio_count
+      LEFT JOIN (
+        SELECT
+          memory_id,
+          SUM(CASE WHEN type = 'image' THEN 1 ELSE 0 END) AS image_count,
+         SUM(CASE WHEN type = 'audio' THEN 1 ELSE 0 END) AS audio_count,
+         SUM(CASE WHEN type = 'video' THEN 1 ELSE 0 END) AS video_count
        FROM memory_assets
        GROUP BY memory_id
      ) mac ON mac.memory_id = m.id
@@ -306,7 +320,8 @@ async function getAllActiveMemories() {
        WHERE journey_id IS NOT NULL
        GROUP BY journey_id
      ) js ON js.journey_id = m.journey_id
-     WHERE m.is_active = 1`,
+     WHERE m.is_active = 1
+       AND (m.expires_at IS NULL OR m.expires_at > NOW())`,
   );
 
   return rows.map(mapMemory);
@@ -339,6 +354,7 @@ async function getMemoriesByJourney(journeyId, ownerId) {
       COALESCE(ma.asset_count, 0) AS has_media,
       COALESCE(mac.image_count, 0) AS image_count,
       COALESCE(mac.audio_count, 0) AS audio_count,
+      COALESCE(mac.video_count, 0) AS video_count,
       COALESCE(js.step_count, NULL) AS journey_step_count
      FROM memories m
      INNER JOIN users u ON u.id = m.owner_id
@@ -352,11 +368,12 @@ async function getMemoriesByJourney(journeyId, ownerId) {
        FROM memory_assets
        GROUP BY memory_id
      ) ma ON ma.memory_id = m.id
-     LEFT JOIN (
-       SELECT
-         memory_id,
-         SUM(CASE WHEN type = 'image' THEN 1 ELSE 0 END) AS image_count,
-         SUM(CASE WHEN type = 'audio' THEN 1 ELSE 0 END) AS audio_count
+      LEFT JOIN (
+        SELECT
+          memory_id,
+          SUM(CASE WHEN type = 'image' THEN 1 ELSE 0 END) AS image_count,
+         SUM(CASE WHEN type = 'audio' THEN 1 ELSE 0 END) AS audio_count,
+         SUM(CASE WHEN type = 'video' THEN 1 ELSE 0 END) AS video_count
        FROM memory_assets
        GROUP BY memory_id
      ) mac ON mac.memory_id = m.id

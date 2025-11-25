@@ -15,6 +15,7 @@ function ProfilePanel({
   onOpenProfile,
   journeyMemories = {},
   journeyVisibilityMap = {},
+  onOpenJourneyPanel,
 }) {
   const { user } = useAuth();
   const [stats, setStats] = useState(null);
@@ -63,11 +64,13 @@ function ProfilePanel({
               profileHandle={profileHandle}
               stats={stats || {}}
               placedMemories={placedMemories}
+              foundMemories={foundMemories}
               journeys={journeys}
               journeyMemories={journeyMemories}
               journeyVisibilityMap={journeyVisibilityMap}
               onSelectMemory={onSelectMemory}
               onOpenProfile={onOpenProfile}
+              onOpenJourneyPanel={onOpenJourneyPanel}
             />
             {loading && <p>Loading stats...</p>}
             {error && <p className="error-text">{error}</p>}

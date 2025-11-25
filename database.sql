@@ -60,6 +60,7 @@ CREATE TABLE memories (
   is_active TINYINT(1) NOT NULL DEFAULT 1,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  expires_at DATETIME NULL,   -- NULL = forever, otherwise exact expiry timestamp
   PRIMARY KEY (id),
   KEY idx_memories_owner (owner_id),
   KEY idx_memories_location (latitude, longitude),
@@ -72,11 +73,12 @@ CREATE TABLE memories (
     ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+
 -- MEMORY ASSETS: Images / audio belonging to a memory
 CREATE TABLE memory_assets (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   memory_id BIGINT UNSIGNED NOT NULL,
-  type ENUM('image','audio') NOT NULL,
+  type ENUM('image','audio','video') NOT NULL,
   storage_key VARCHAR(512) NOT NULL,  -- file path / key for MinIO/S3 later
   mime_type VARCHAR(128) DEFAULT NULL,
   sort_order INT NOT NULL DEFAULT 0,

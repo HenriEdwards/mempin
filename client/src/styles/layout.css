@@ -572,6 +572,12 @@
   margin: 1rem 0;
 }
 
+.memory-details__stats > div {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+}
+
 .memory-details__stats span {
   font-size: 0.8rem;
   color: var(--color-text-muted);

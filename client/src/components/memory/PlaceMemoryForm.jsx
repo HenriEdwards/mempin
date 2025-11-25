@@ -13,6 +13,11 @@ const VISIBILITY_OPTIONS = [
 ];
 
 const RADIUS_MARKS = [20, 50, 100, 200];
+const EXPIRY_PRESETS = [
+  { value: 7, label: '1 week' },
+  { value: 30, label: '1 month' },
+  { value: 365, label: '1 year' },
+];
 
 function PlaceMemoryForm({ coords, onSubmit, onCancel, loading, suggestedTags = [] }) {
   const [form, setForm] = useState({
@@ -27,11 +32,16 @@ function PlaceMemoryForm({ coords, onSubmit, onCancel, loading, suggestedTags = 
     journeyStep: 1,
     newJourneyTitle: '',
     newJourneyDescription: '',
+    expiryMode: 'forever', // preset | custom | forever
+    expiryPreset: EXPIRY_PRESETS[0].value,
+    customExpiry: '',
   });
   const [journeys, setJourneys] = useState([]);
   const [images, setImages] = useState([]);
   const [imagePreviews, setImagePreviews] = useState([]);
   const [audio, setAudio] = useState([]);
+  const [videos, setVideos] = useState([]);
+  const [expiryError, setExpiryError] = useState('');
   const mediaInputRef = useRef(null);
 
   useEffect(() => {
@@ -83,6 +93,7 @@ function PlaceMemoryForm({ coords, onSubmit, onCancel, loading, suggestedTags = 
     if (!files.length) return;
     const imagesOnly = files.filter((file) => file.type.startsWith('image/'));
     const audioOnly = files.filter((file) => file.type.startsWith('audio/'));
+    const videoOnly = files.filter((file) => file.type.startsWith('video/'));
 
     setImages((prev) => [...prev, ...imagesOnly]);
     const newPreviews = imagesOnly.map((file) => ({
@@ -91,6 +102,7 @@ function PlaceMemoryForm({ coords, onSubmit, onCancel, loading, suggestedTags = 
     }));
     setImagePreviews((prev) => [...prev, ...newPreviews]);
     setAudio((prev) => [...prev, ...audioOnly]);
+    setVideos((prev) => [...prev, ...videoOnly]);
   };
 
   const handleMediaInputChange = (event) => {
@@ -110,6 +122,30 @@ function PlaceMemoryForm({ coords, onSubmit, onCancel, loading, suggestedTags = 
   const handleSubmit = (event) => {
     event.preventDefault();
     if (!coords) return;
+    const expiresAtISO = (() => {
+      if (form.expiryMode === 'forever') return null;
+      if (form.expiryMode === 'preset') {
+        const days = Number(form.expiryPreset);
+        if (!Number.isFinite(days) || days <= 0) return null;
+        const date = new Date();
+        date.setDate(date.getDate() + days);
+        return date.toISOString();
+      }
+      if (form.expiryMode === 'custom' && form.customExpiry) {
+        const candidate = new Date(form.customExpiry);
+        if (Number.isNaN(candidate.getTime()) || candidate.getTime() <= Date.now()) {
+          return null;
+        }
+        return candidate.toISOString();
+      }
+      return null;
+    })();
+
+    if (form.expiryMode !== 'forever' && !expiresAtISO) {
+      setExpiryError('Choose a valid expiry date/time in the future or mark as forever.');
+      return;
+    }
+    setExpiryError('');
 
     const payload = new FormData();
     payload.append('title', form.title.trim());
@@ -121,6 +157,9 @@ function PlaceMemoryForm({ coords, onSubmit, onCancel, loading, suggestedTags = 
     payload.append('radiusM', String(form.radiusM));
     payload.append('latitude', coords.latitude);
     payload.append('longitude', coords.longitude);
+    if (expiresAtISO) {
+      payload.append('expiresAt', expiresAtISO);
+    }
     if (form.journeyId) {
       payload.append('journeyId', form.journeyId);
       payload.append('journeyStep', form.journeyStep);
@@ -133,6 +172,7 @@ function PlaceMemoryForm({ coords, onSubmit, onCancel, loading, suggestedTags = 
 
     images.forEach((file) => payload.append('images', file));
     audio.forEach((file) => payload.append('audio', file));
+    videos.forEach((file) => payload.append('video', file));
 
     onSubmit(payload);
   };
@@ -237,6 +277,60 @@ function PlaceMemoryForm({ coords, onSubmit, onCancel, loading, suggestedTags = 
           <span className="chip">{form.radiusM} meters</span>
         </div>
         <div className="field">
+          <label>Expiry</label>
+          <div className="chip-group">
+            {EXPIRY_PRESETS.map((option) => {
+              const active = form.expiryMode === 'preset' && Number(form.expiryPreset) === option.value;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  className={`chip chip--clickable ${active ? 'chip--active' : ''}`}
+                  onClick={() => {
+                    setExpiryError('');
+                    setForm((prev) => ({
+                      ...prev,
+                      expiryMode: 'preset',
+                      expiryPreset: option.value,
+                    }));
+                  }}
+                >
+                  {option.label}
+                </button>
+              );
+            })}
+            <button
+              type="button"
+              className={`chip chip--clickable ${form.expiryMode === 'forever' ? 'chip--active' : ''}`}
+              onClick={() => {
+                setExpiryError('');
+                setForm((prev) => ({
+                  ...prev,
+                  expiryMode: 'forever',
+                }));
+              }}
+            >
+              Forever
+            </button>
+          </div>
+          <div style={{ marginTop: '0.5rem' }}>
+            <Input
+              label="Custom date/time"
+              type="datetime-local"
+              value={form.customExpiry}
+              onChange={(event) => {
+                setExpiryError('');
+                setForm((prev) => ({
+                  ...prev,
+                  customExpiry: event.target.value,
+                  expiryMode: event.target.value ? 'custom' : prev.expiryMode,
+                }));
+              }}
+            />
+          </div>
+          {expiryError && <p className="input-error" style={{ marginTop: '0.4rem' }}>{expiryError}</p>}
+        </div>
+        <div className="field">
           <label>Journey</label>
           <Select
             value={form.journeyId}
@@ -279,26 +373,29 @@ function PlaceMemoryForm({ coords, onSubmit, onCancel, loading, suggestedTags = 
           onDragOver={(event) => event.preventDefault()}
           onDrop={handleDrop}
         >
-          <p className="media-dropzone__text">Drag images or audio here</p>
+          <p className="media-dropzone__text">Drag images, audio, or video here</p>
           <Button variant="ghost" onClick={() => mediaInputRef.current?.click()}>
             Upload
           </Button>
           <input
             ref={mediaInputRef}
             type="file"
-            accept="image/*,audio/*"
+            accept="image/*,audio/*,video/*"
             multiple
             onChange={handleMediaInputChange}
             style={{ display: 'none' }}
           />
-          {(imagePreviews.length > 0 || audio.length > 0) && (
+          {(imagePreviews.length > 0 || audio.length > 0 || videos.length > 0) && (
             <div className="media-preview">
               {imagePreviews.map((preview) => (
                 <img key={preview.id} src={preview.url} alt="" />
               ))}
-              {audio.length > 0 && (
+              {(audio.length > 0 || videos.length > 0) && (
                 <ul className="media-files">
                   {audio.map((file) => (
+                    <li key={`${file.name}-${file.size}`}>{file.name}</li>
+                  ))}
+                  {videos.map((file) => (
                     <li key={`${file.name}-${file.size}`}>{file.name}</li>
                   ))}
                 </ul>

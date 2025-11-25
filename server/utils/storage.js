@@ -31,7 +31,7 @@ const storage = multer.diskStorage({
 const memoryAssetUpload = multer({
   storage,
   limits: {
-    fileSize: 15 * 1024 * 1024, // 15MB per file to allow short audio clips
+    fileSize: 50 * 1024 * 1024, // allow short videos
     files: 8,
   },
 });
@@ -56,10 +56,17 @@ async function persistMemoryAssets(memoryId, files = []) {
       .relative(uploadsRoot, finalPath)
       .replace(/\\/g, '/');
 
+    let type = 'image';
+    if (file.mimetype?.startsWith('audio/')) {
+      type = 'audio';
+    } else if (file.mimetype?.startsWith('video/')) {
+      type = 'video';
+    }
+
     return {
       storageKey,
       mimeType: file.mimetype,
-      type: file.mimetype?.startsWith('audio/') ? 'audio' : 'image',
+      type,
     };
   });
 

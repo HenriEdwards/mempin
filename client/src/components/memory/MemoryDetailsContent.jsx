@@ -10,6 +10,17 @@ function formatDate(value) {
   }).format(new Date(value));
 }
 
+function formatExpiry(value) {
+  if (!value) return 'Forever';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Forever';
+  const formatted = new Intl.DateTimeFormat('en', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(date);
+  return date.getTime() <= Date.now() ? `Expired · ${formatted}` : formatted;
+}
+
 function MemoryDetailsContent({ memory, onGenerateQR, onViewProfile }) {
   if (!memory) return null;
   const [lightboxIndex, setLightboxIndex] = useState(null);
@@ -18,6 +29,7 @@ function MemoryDetailsContent({ memory, onGenerateQR, onViewProfile }) {
     [memory.assets],
   );
   const audioAssets = (memory.assets || []).filter((asset) => asset.type === 'audio');
+  const videoAssets = (memory.assets || []).filter((asset) => asset.type === 'video');
   const shareUrl = `${window.location.origin}/m/${memory.id}`;
 
   const openLightbox = (index) => {
@@ -90,6 +102,10 @@ function MemoryDetailsContent({ memory, onGenerateQR, onViewProfile }) {
           <span>Last unlocked</span>
           <strong>{formatDate(memory.lastUnlockedAt)}</strong>
         </div>
+        <div>
+          <span>Expires</span>
+          <strong>{formatExpiry(memory.expiresAt)}</strong>
+        </div>
       </div>
       {memory.journeyId && (
         <div className="memory-details__journey">
@@ -143,6 +159,16 @@ function MemoryDetailsContent({ memory, onGenerateQR, onViewProfile }) {
           {audioAssets.map((asset) => (
             <audio key={asset.id} controls src={asset.url} />
           ))}
+        </div>
+      )}
+      {videoAssets.length > 0 && (
+        <div className="memory-details__section">
+          <h4>Video</h4>
+          <div className="memory-details__videos">
+            {videoAssets.map((asset) => (
+              <video key={asset.id} controls src={asset.url} style={{ maxWidth: '100%', borderRadius: '0.5rem' }} />
+            ))}
+          </div>
         </div>
       )}
       {activeImage && (
