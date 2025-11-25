@@ -1,7 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import Input from '../ui/Input.jsx';
-import ProfileFollowingTab from './ProfileFollowingTab.jsx';
-import ProfileFollowersTab from './ProfileFollowersTab.jsx';
 import { normalizeHandle } from '../../utils/handles.js';
 
 function formatProfileExpiry(value) {
@@ -172,20 +170,6 @@ function ProfileTabsContent({
           onClick={() => setTab('journeys')}
         >
           Collections <span className="tab-count">{journeyCount}</span>
-        </button>
-        <button
-          type="button"
-          className={`tab-button ${tab === 'following' ? 'active' : ''}`}
-          onClick={() => setTab('following')}
-        >
-          Following <span className="tab-count">{followingCount}</span>
-        </button>
-        <button
-          type="button"
-          className={`tab-button ${tab === 'followers' ? 'active' : ''}`}
-          onClick={() => setTab('followers')}
-        >
-          Followers <span className="tab-count">{followerCount}</span>
         </button>
       </div>
 
@@ -384,21 +368,6 @@ function ProfileTabsContent({
           </div>
         )}
 
-        {tab === 'following' && (
-          <ProfileFollowingTab
-            isActive={tab === 'following'}
-            openProfile={onOpenProfile}
-            {...followingTabProps}
-          />
-        )}
-
-        {tab === 'followers' && (
-          <ProfileFollowersTab
-            isActive={tab === 'followers'}
-            openProfile={onOpenProfile}
-            profileHandle={followingTabProps?.profileHandle}
-          />
-        )}
       </div>
       </div>
     </>

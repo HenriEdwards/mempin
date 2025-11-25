@@ -7,6 +7,8 @@ const UIContext = createContext({
   isProfilePanelOpen: false,
   isFollowersPanelOpen: false,
   isJourneysPanelOpen: false,
+  isFollowersPanelOpen: false,
+  isFollowingPanelOpen: false,
   isUserProfilePanelOpen: false,
   isUserMemoriesPanelOpen: false,
   isUserJourneysPanelOpen: false,
@@ -22,6 +24,7 @@ const UIContext = createContext({
   closeMemoriesPanel: () => {},
   openProfilePanel: () => {},
   openFollowersPanel: () => {},
+  openFollowingPanel: () => {},
   openJourneysPanel: () => {},
   openUserProfilePanel: () => {},
   openUserMemoriesPanel: () => {},
@@ -72,7 +75,12 @@ export function UIProvider({ children }) {
   }, [previousPanel]);
   const openMemoriesPanel = useCallback(() => openPanel('memories'), [openPanel]);
   const openProfilePanel = useCallback(() => openPanel('profile'), [openPanel]);
-  const openFollowersPanel = useCallback(() => openPanel('followers'), [openPanel]);
+  const openFollowersPanel = useCallback(() => {
+    setActivePanel((current) => (current === 'followersList' ? null : 'followersList'));
+  }, []);
+  const openFollowingPanel = useCallback(() => {
+    setActivePanel((current) => (current === 'followingList' ? null : 'followingList'));
+  }, []);
   const openJourneysPanel = useCallback(() => openPanel('journeys'), [openPanel]);
   const openUserMemoriesPanel = useCallback(() => openPanel('userMemories'), [openPanel]);
   const openUserJourneysPanel = useCallback(() => openPanel('userJourneys'), [openPanel]);
@@ -98,6 +106,8 @@ export function UIProvider({ children }) {
       isProfilePanelOpen: activePanel === 'profile',
       isFollowersPanelOpen: activePanel === 'followers',
       isJourneysPanelOpen: activePanel === 'journeys',
+      isFollowersPanelOpen: activePanel === 'followersList',
+      isFollowingPanelOpen: activePanel === 'followingList',
       isUserProfilePanelOpen: activePanel === 'userProfile',
       isUserMemoriesPanelOpen: activePanel === 'userMemories',
       isUserJourneysPanelOpen: activePanel === 'userJourneys',
@@ -109,6 +119,8 @@ export function UIProvider({ children }) {
       openMemoriesPanel,
       closeMemoriesPanel: closePanel,
       openProfilePanel,
+      openFollowersPanel,
+      openFollowingPanel,
       openFollowersPanel,
       openJourneysPanel,
       openUserProfilePanel,
@@ -124,6 +136,8 @@ export function UIProvider({ children }) {
       openProfilePanel,
       openFollowersPanel,
       openJourneysPanel,
+      openFollowersPanel,
+      openFollowingPanel,
       userProfileHandle,
       userProfileActions,
       openUserProfilePanel,

@@ -12,6 +12,8 @@ import TopRightActions from '../components/layout/TopRightActions.jsx';
 import ProfilePanel from '../components/profile/ProfilePanel.jsx';
 import UserProfilePanel from '../components/profile/UserProfilePanel.jsx';
 import SlidingPanel from '../components/layout/SlidingPanel.jsx';
+import ProfileFollowersTab from '../components/profile/ProfileFollowersTab.jsx';
+import ProfileFollowingTab from '../components/profile/ProfileFollowingTab.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useUI } from '../context/UIContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
@@ -44,6 +46,8 @@ function MapPage() {
     goBackFromUserProfile,
     openUserProfilePanel,
     openProfilePanel,
+    openFollowersPanel,
+    openFollowingPanel,
     userProfileHandle,
     userProfileActions,
   } = useUI();
@@ -857,6 +861,34 @@ function MapPage() {
         }
         onClose={() => goBackFromUserProfile()}
       />
+      <SlidingPanel
+        isOpen={activePanel === 'followersList'}
+        onClose={closePanel}
+        title="Followers"
+        width="480px"
+        showCloseButton
+      >
+        <ProfileFollowersTab
+          isActive={activePanel === 'followersList'}
+          openProfile={openProfileFromList}
+          profileHandle={normalizedUserHandle}
+          hideSuggestions
+        />
+      </SlidingPanel>
+      <SlidingPanel
+        isOpen={activePanel === 'followingList'}
+        onClose={closePanel}
+        title="Following"
+        width="480px"
+        showCloseButton
+      >
+        <ProfileFollowingTab
+          isActive={activePanel === 'followingList'}
+          openProfile={openProfileFromList}
+          profileHandle={normalizedUserHandle}
+          hideSuggestions={false}
+        />
+      </SlidingPanel>
 
       <Modal isOpen={guestPromptOpen} onClose={() => {}}>
         <h3><strong>Join mempin</strong></h3>

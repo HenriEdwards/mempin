@@ -36,7 +36,13 @@ function TopRightActions({
   onToggleVisibilityFilter,
   onSearchChange,
 }) {
-  const { openProfilePanel, closePanel, activePanel } = useUI();
+  const {
+    openProfilePanel,
+    closePanel,
+    activePanel,
+    openFollowersPanel,
+    openFollowingPanel,
+  } = useUI();
   const { logout, user } = useAuth();
   const [loggingOut, setLoggingOut] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
@@ -71,114 +77,166 @@ function TopRightActions({
   return (
     <div className="map-actions" style={{ right: actionOffset }}>
 
-      <div className="filter-wrapper">
-        <Button variant="ghost" onClick={onToggleFilter} aria-label="Filters">
-          <SearchIcon />
+      <div className="map-actions__cluster">
+        <div className="filter-wrapper">
+          <Button variant="ghost" onClick={onToggleFilter} aria-label="Filters">
+            <SearchIcon />
+          </Button>
+          {isFilterOpen && (
+            <div className="filter-card">
+              <div className="filter-card__row">
+                <div className="filter-card__label">Visibility</div>
+                <div className="chip-group">
+                  {VISIBILITY_OPTIONS.map((option) => (
+                    <button
+                      key={option}
+                      type="button"
+                      className={`chip chip--clickable ${
+                        visibilitySet.has(option) ? 'chip--active' : ''
+                      }`}
+                      onClick={() => onToggleVisibilityFilter?.(option)}
+                    >
+                      {option}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="filter-card__row">
+                <div className="filter-card__label">Ownership</div>
+                <div className="chip-group">
+                  {[
+                    ['all', 'All'],
+                    ['mine', 'My memories'],
+                    ['others', 'Others'],
+                    ['unlocked', 'Unlocked'],
+                    ['following', 'Following'],
+                  ].map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      className={`chip chip--clickable ${
+                        filters?.ownership === value ? 'chip--active' : ''
+                      }`}
+                      onClick={() => onSelectOwnership?.(value)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="filter-card__row">
+                <div className="filter-card__label">Journey</div>
+                <div className="chip-group">
+                  {[
+                    ['all', 'Any'],
+                    ['journey', 'In a journey'],
+                    ['standalone', 'Standalone'],
+                  ].map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      className={`chip chip--clickable ${
+                        filters?.journey === value ? 'chip--active' : ''
+                      }`}
+                      onClick={() => onSelectJourneyType?.(value)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="filter-card__row">
+                <div className="filter-card__label">Media</div>
+                <div className="chip-group">
+                  {[
+                    ['all', 'Any'],
+                    ['withMedia', 'Has media'],
+                    ['textOnly', 'Text only'],
+                  ].map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      className={`chip chip--clickable ${
+                        filters?.media === value ? 'chip--active' : ''
+                      }`}
+                      onClick={() => onSelectMedia?.(value)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="filter-card__row">
+                <div className="filter-card__label">Search</div>
+                <Input
+                  placeholder="Search memories, journeys, or handles"
+                  value={filters?.search || ''}
+                  onChange={(event) => onSearchChange?.(event.target.value)}
+                />
+              </div>
+
+              <div className="filter-card__actions">
+                <Button variant="ghost" onClick={onResetFilters}>
+                  Reset filters
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+        <Button
+          variant="ghost"
+          aria-label="Followers"
+          onClick={openFollowersPanel}
+          title="Followers"
+          disabled={!user}
+        >
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <circle cx="9" cy="7" r="4" />
+            <path d="M17 11.5V7.5a2.5 2.5 0 0 0-5 0v4" />
+            <path d="M5 21v-2a4 4 0 0 1 4-4h2" />
+            <path d="M17 17v4" />
+            <path d="M21 17v4" />
+            <path d="M17 13a3 3 0 0 1 3 3" />
+          </svg>
         </Button>
-        {isFilterOpen && (
-          <div className="filter-card">
-            <div className="filter-card__row">
-              <div className="filter-card__label">Visibility</div>
-              <div className="chip-group">
-                {VISIBILITY_OPTIONS.map((option) => (
-                  <button
-                    key={option}
-                    type="button"
-                    className={`chip chip--clickable ${
-                      visibilitySet.has(option) ? 'chip--active' : ''
-                    }`}
-                    onClick={() => onToggleVisibilityFilter?.(option)}
-                  >
-                    {option}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="filter-card__row">
-              <div className="filter-card__label">Ownership</div>
-              <div className="chip-group">
-                {[
-                  ['all', 'All'],
-                  ['mine', 'My memories'],
-                  ['others', 'Others'],
-                  ['unlocked', 'Unlocked'],
-                  ['following', 'Following'],
-                ].map(([value, label]) => (
-                  <button
-                    key={value}
-                    type="button"
-                    className={`chip chip--clickable ${
-                      filters?.ownership === value ? 'chip--active' : ''
-                    }`}
-                    onClick={() => onSelectOwnership?.(value)}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="filter-card__row">
-              <div className="filter-card__label">Journey</div>
-              <div className="chip-group">
-                {[
-                  ['all', 'Any'],
-                  ['journey', 'In a journey'],
-                  ['standalone', 'Standalone'],
-                ].map(([value, label]) => (
-                  <button
-                    key={value}
-                    type="button"
-                    className={`chip chip--clickable ${
-                      filters?.journey === value ? 'chip--active' : ''
-                    }`}
-                    onClick={() => onSelectJourneyType?.(value)}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="filter-card__row">
-              <div className="filter-card__label">Media</div>
-              <div className="chip-group">
-                {[
-                  ['all', 'Any'],
-                  ['withMedia', 'Has media'],
-                  ['textOnly', 'Text only'],
-                ].map(([value, label]) => (
-                  <button
-                    key={value}
-                    type="button"
-                    className={`chip chip--clickable ${
-                      filters?.media === value ? 'chip--active' : ''
-                    }`}
-                    onClick={() => onSelectMedia?.(value)}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="filter-card__row">
-              <div className="filter-card__label">Search</div>
-              <Input
-                placeholder="Search memories, journeys, or handles"
-                value={filters?.search || ''}
-                onChange={(event) => onSearchChange?.(event.target.value)}
-              />
-            </div>
-
-            <div className="filter-card__actions">
-              <Button variant="ghost" onClick={onResetFilters}>
-                Reset filters
-              </Button>
-            </div>
-          </div>
-        )}
+        <Button
+          variant="ghost"
+          aria-label="Following"
+          onClick={openFollowingPanel}
+          title="Following"
+          disabled={!user}
+        >
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M16 7a4 4 0 1 0-8 0 4 4 0 0 0 8 0Z" />
+            <path d="M5 21a7 7 0 0 1 14 0" />
+            <path d="m12 11 3 3-3 3" />
+            <path d="M9 14h6" />
+          </svg>
+        </Button>
       </div>
       <Button
         variant="ghost"
