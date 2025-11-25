@@ -1,31 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
-import userIconUrl from 'leaflet/dist/images/marker-icon.png';
-import userIconRetina from 'leaflet/dist/images/marker-icon-2x.png';
-import userIconShadow from 'leaflet/dist/images/marker-shadow.png';
+import loadGoogleMapsApi from '../../utils/googleMaps.js';
 import Button from '../ui/Button.jsx';
-
-delete L.Icon.Default.prototype._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: userIconRetina,
-  iconUrl: userIconUrl,
-  shadowUrl: userIconShadow,
-});
-
-const userMarkerIcon = L.icon({
-  iconUrl: `data:image/svg+xml,${encodeURIComponent(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="25" height="41" viewBox="0 0 25 41"><path fill="%2322c55e" stroke="%2315803d" stroke-width="2" d="M12.5 1C6.29 1 1 6.65 1 13.5 1 21.7 12.5 40 12.5 40S24 21.7 24 13.5C24 6.65 18.71 1 12.5 1Z"/><circle cx="12.5" cy="13" r="5" fill="#fff"/></svg>`,
-  )}`,
-  iconRetinaUrl: `data:image/svg+xml,${encodeURIComponent(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="25" height="41" viewBox="0 0 25 41"><path fill="%2322c55e" stroke="%2315803d" stroke-width="2" d="M12.5 1C6.29 1 1 6.65 1 13.5 1 21.7 12.5 40 12.5 40S24 21.7 24 13.5C24 6.65 18.71 1 12.5 1Z"/><circle cx="12.5" cy="13" r="5" fill="#fff"/></svg>`,
-  )}`,
-  shadowUrl: userIconShadow,
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowSize: [41, 41],
-});
 
 const MEMORY_PIN_STYLES = {
   text: { fill: '#3b82f6', stroke: '#1d4ed8' }, // blue
@@ -36,25 +11,63 @@ const MEMORY_PIN_STYLES = {
 };
 
 const memoryIconCache = new Map();
+const MIN_VISUAL_RADIUS = 60;
+const MAX_VISUAL_RADIUS = 20000;
+const BASE_ZOOM_FOR_SCALING = 16;
+const ZOOM_SCALE_EXPONENT = 0.6;
+const MERGE_BASE_DISTANCE_METERS = 60;
+const MAIN_WORLD_BOUNDS = { north: 85, south: -85, east: 180, west: -180 };
 
-function getMemoryPinIcon(variant = 'text') {
+const userIconSvg = `data:image/svg+xml,${encodeURIComponent(
+  `<svg xmlns="http://www.w3.org/2000/svg" width="25" height="41" viewBox="0 0 25 41"><path fill="%2322c55e" stroke="%2315803d" stroke-width="2" d="M12.5 1C6.29 1 1 6.65 1 13.5 1 21.7 12.5 40 12.5 40S24 21.7 24 13.5C24 6.65 18.71 1 12.5 1Z"/><circle cx="12.5" cy="13" r="5" fill="#fff"/></svg>`,
+)}`;
+
+function normalizeLongitude(lng) {
+  if (!Number.isFinite(lng)) return 0;
+  return ((((lng + 180) % 360) + 360) % 360) - 180;
+}
+
+function haversineDistanceMeters(origin, destination) {
+  const R = 6371000; // meters
+  const lat1 = (origin.lat * Math.PI) / 180;
+  const lat2 = (destination.lat * Math.PI) / 180;
+  const dLat = lat2 - lat1;
+  const dLng = ((destination.lng - origin.lng) * Math.PI) / 180;
+
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function getMemoryPinIcon(google, variant = 'text') {
   const key = MEMORY_PIN_STYLES[variant] ? variant : 'text';
   if (memoryIconCache.has(key)) return memoryIconCache.get(key);
 
   const { fill, stroke } = MEMORY_PIN_STYLES[key];
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="25" height="41" viewBox="0 0 25 41"><path fill="${fill}" stroke="${stroke}" stroke-width="2" d="M12.5 1C6.29 1 1 6.65 1 13.5 1 21.7 12.5 40 12.5 40S24 21.7 24 13.5C24 6.65 18.71 1 12.5 1Z"/><circle cx="12.5" cy="13" r="5" fill="#ffffff" stroke="${stroke}" stroke-width="1.4"/></svg>`;
-  const icon = L.icon({
-    iconUrl: `data:image/svg+xml,${encodeURIComponent(svg)}`,
-    iconRetinaUrl: `data:image/svg+xml,${encodeURIComponent(svg)}`,
-    shadowUrl: userIconShadow,
-    iconSize: [25, 41],
-    iconAnchor: [12, 41],
-    popupAnchor: [1, -34],
-    shadowSize: [41, 41],
-  });
+  const icon = {
+    url: `data:image/svg+xml,${encodeURIComponent(svg)}`,
+    scaledSize: new google.maps.Size(25, 41),
+    anchor: new google.maps.Point(12, 41),
+    labelOrigin: new google.maps.Point(12, 13),
+  };
 
   memoryIconCache.set(key, icon);
   return icon;
+}
+
+function getUserMarkerIcon(google) {
+  return {
+    url: userIconSvg,
+    scaledSize: new google.maps.Size(25, 41),
+    anchor: new google.maps.Point(12, 41),
+  };
+}
+
+function clearOverlays(ref) {
+  ref.current?.forEach((item) => item?.setMap?.(null));
+  ref.current = [];
 }
 
 function getMemoryMediaKind(memory) {
@@ -93,15 +106,6 @@ function getGroupMediaVariant(memories = []) {
   return 'text';
 }
 
-const MIN_VISUAL_RADIUS = 60;
-const MAX_VISUAL_RADIUS = 20000;
-const BASE_ZOOM_FOR_SCALING = 16;
-const ZOOM_SCALE_EXPONENT = 0.6;
-const MERGE_BASE_DISTANCE_METERS = 60;
-// Allow one wrapped copy on each horizontal side (3 worlds wide)
-const WORLD_BOUNDS = L.latLngBounds([-85, -540], [85, 540]);
-const MAIN_WORLD_BOUNDS = L.latLngBounds([-85, -180], [85, 180]);
-
 function formatRelative(value) {
   if (!value) return 'Never';
   const date = new Date(value);
@@ -117,6 +121,17 @@ function formatRelative(value) {
   return new Intl.DateTimeFormat('en', { dateStyle: 'medium' }).format(date);
 }
 
+function clampCenterWithinBounds(map) {
+  const center = map.getCenter();
+  if (!center) return;
+  const clampedLat = Math.min(Math.max(center.lat(), MAIN_WORLD_BOUNDS.south), MAIN_WORLD_BOUNDS.north);
+  const normalizedLng = normalizeLongitude(center.lng());
+
+  if (clampedLat !== center.lat() || normalizedLng !== center.lng()) {
+    map.setCenter({ lat: clampedLat, lng: normalizedLng });
+  }
+}
+
 function FlatMapView({
   userLocation,
   locationError,
@@ -129,21 +144,28 @@ function FlatMapView({
 }) {
   const mapContainerRef = useRef(null);
   const mapRef = useRef(null);
-  const userLayerRef = useRef(null);
-  const memoriesLayerRef = useRef(null);
-  const journeysLayerRef = useRef(null);
+  const googleRef = useRef(null);
+  const userLayerRef = useRef([]);
+  const memoriesLayerRef = useRef([]);
+  const memoryCirclesRef = useRef([]);
+  const journeysLayerRef = useRef([]);
+  const mapListenersRef = useRef([]);
   const [mapReady, setMapReady] = useState(false);
+  const [mapError, setMapError] = useState('');
   const [zoomLevel, setZoomLevel] = useState(2);
 
   const groupedMemories = useMemo(() => {
     const groups = new Map();
     memories.forEach((memory) => {
-      const key = `${Number(memory.latitude).toFixed(6)}:${Number(memory.longitude).toFixed(6)}`;
+      const lat = Number(memory.latitude);
+      const lng = Number(memory.longitude);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+      const key = `${lat.toFixed(6)}:${lng.toFixed(6)}`;
       if (!groups.has(key)) {
         groups.set(key, {
           id: key,
-          latitude: Number(memory.latitude),
-          longitude: Number(memory.longitude),
+          latitude: lat,
+          longitude: lng,
           memories: [],
         });
       }
@@ -156,95 +178,100 @@ function FlatMapView({
     if (!mapContainerRef.current || mapRef.current) {
       return;
     }
-    mapRef.current = L.map(mapContainerRef.current, {
-      center: [0, 0],
-      zoom: 2,
-      minZoom: 2,
-      maxZoom: 19,
-      maxBounds: WORLD_BOUNDS,
-      maxBoundsViscosity: 1,
-    });
+    let isCancelled = false;
+    setMapError('');
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution:
-        '&copy; <a href="http://osm.org/copyright">OpenStreetMap</a> contributors',
-      noWrap: false,
-      maxZoom: 19,
-    }).addTo(mapRef.current);
+    loadGoogleMapsApi()
+      .then((google) => {
+        if (isCancelled || mapRef.current) return;
+        googleRef.current = google;
 
-    userLayerRef.current = L.layerGroup().addTo(mapRef.current);
-    memoriesLayerRef.current = L.layerGroup().addTo(mapRef.current);
-    journeysLayerRef.current = L.layerGroup().addTo(mapRef.current);
+        const map = new google.maps.Map(mapContainerRef.current, {
+          center: { lat: 0, lng: 0 },
+          zoom: 2,
+          minZoom: 2,
+          maxZoom: 19,
+          zoomControl: false,
+          streetViewControl: false,
+          mapTypeControl: false,
+          fullscreenControl: false,
+          clickableIcons: true,
+          restriction: {
+            latLngBounds: MAIN_WORLD_BOUNDS,
+            strictBounds: false,
+          },
+        });
 
-    setMapReady(true);
-    setZoomLevel(mapRef.current.getZoom());
+        mapRef.current = map;
+        setMapReady(true);
+        setZoomLevel(map.getZoom() || 2);
+
+        const zoomListener = map.addListener('zoom_changed', () => {
+          setZoomLevel(map.getZoom() || 2);
+        });
+        const idleListener = map.addListener('idle', () => clampCenterWithinBounds(map));
+        mapListenersRef.current = [zoomListener, idleListener];
+      })
+      .catch((error) => {
+        if (isCancelled) return;
+        console.error('Failed to load Google Maps', error);
+        setMapError(error?.message || 'Failed to load the map. Check your API key and network.');
+      });
 
     return () => {
-      mapRef.current?.remove();
+      isCancelled = true;
+      mapListenersRef.current.forEach((listener) => listener?.remove());
+      mapListenersRef.current = [];
+      clearOverlays(userLayerRef);
+      clearOverlays(memoriesLayerRef);
+      clearOverlays(memoryCirclesRef);
+      clearOverlays(journeysLayerRef);
       mapRef.current = null;
+      googleRef.current = null;
       setMapReady(false);
     };
   }, []);
 
   useEffect(() => {
-    if (!mapReady || !mapRef.current || !userLayerRef.current) return;
-    userLayerRef.current.clearLayers();
+    if (!mapReady || !mapRef.current || !googleRef.current) return;
+    clearOverlays(userLayerRef);
     if (!userLocation) return;
 
-    const latLng = [userLocation.latitude, userLocation.longitude];
-    L.marker(latLng, { icon: userMarkerIcon })
-      .bindTooltip('You are here', { direction: 'top' })
-      .addTo(userLayerRef.current);
+    const google = googleRef.current;
+    const map = mapRef.current;
+    const position = {
+      lat: Number(userLocation.latitude),
+      lng: Number(userLocation.longitude),
+    };
+    if (!Number.isFinite(position.lat) || !Number.isFinite(position.lng)) return;
 
-    L.circle(latLng, { radius: 25, color: '#22d3ee' }).addTo(userLayerRef.current);
-    mapRef.current.setView(latLng, 15, { animate: true });
+    const marker = new google.maps.Marker({
+      position,
+      map,
+      icon: getUserMarkerIcon(google),
+      title: 'You are here',
+    });
+    const circle = new google.maps.Circle({
+      map,
+      center: position,
+      radius: 25,
+      strokeColor: '#22d3ee',
+      strokeOpacity: 0.9,
+      strokeWeight: 2,
+      fillColor: '#22d3ee',
+      fillOpacity: 0.12,
+    });
+
+    userLayerRef.current = [marker, circle];
+    map.panTo(position);
+    if ((map.getZoom() || 0) < 15) {
+      map.setZoom(15);
+    }
   }, [userLocation, mapReady]);
 
-  useEffect(() => {
-    if (!mapReady || !mapRef.current) return undefined;
-    const map = mapRef.current;
-    const updateZoom = () => setZoomLevel(map.getZoom());
-    map.on('zoomend', updateZoom);
-    updateZoom();
-    return () => map.off('zoomend', updateZoom);
-  }, [mapReady]);
-
-  useEffect(() => {
-    if (!mapReady || !mapRef.current) return undefined;
-    const map = mapRef.current;
-
-    const clampCenterWithinMainWorld = () => {
-      const center = map.getCenter();
-      const clampedLat = Math.min(
-        Math.max(center.lat, MAIN_WORLD_BOUNDS.getSouth()),
-        MAIN_WORLD_BOUNDS.getNorth(),
-      );
-      // Normalize longitude into [-180, 180] so the center never leaves the primary world
-      let normalizedLng = center.lng;
-      if (normalizedLng < -180 || normalizedLng > 180) {
-        normalizedLng = ((((normalizedLng + 180) % 360) + 360) % 360) - 180;
-      }
-
-      if (clampedLat !== center.lat || normalizedLng !== center.lng) {
-        map.setView([clampedLat, normalizedLng], map.getZoom(), { animate: false });
-      }
-    };
-
-    map.on('moveend', clampCenterWithinMainWorld);
-    return () => map.off('moveend', clampCenterWithinMainWorld);
-  }, [mapReady]);
-
   const displayGroups = useMemo(() => {
-    const map = mapRef.current;
-    const zoom = map?.getZoom() ?? BASE_ZOOM_FOR_SCALING;
+    const zoom = mapRef.current?.getZoom() ?? BASE_ZOOM_FOR_SCALING;
     const scale = Math.pow(2, (BASE_ZOOM_FOR_SCALING - zoom) * ZOOM_SCALE_EXPONENT);
-
-    if (!map) {
-      return groupedMemories.map((group) => ({
-        ...group,
-        radius: (group.memories[0]?.radiusM || 50) * scale,
-      }));
-    }
 
     const pending = [...groupedMemories];
     const clusters = [];
@@ -258,9 +285,9 @@ function FlatMapView({
         const current = queue.pop();
         for (let i = pending.length - 1; i >= 0; i -= 1) {
           const candidate = pending[i];
-          const distance = map.distance(
-            [current.latitude, current.longitude],
-            [candidate.latitude, candidate.longitude],
+          const distance = haversineDistanceMeters(
+            { lat: current.latitude, lng: current.longitude },
+            { lat: candidate.latitude, lng: candidate.longitude },
           );
           if (distance <= MERGE_BASE_DISTANCE_METERS * scale) {
             clusterMembers.push(candidate);
@@ -292,10 +319,10 @@ function FlatMapView({
           Math.max(baseRadius * scale, MIN_VISUAL_RADIUS),
           MAX_VISUAL_RADIUS,
         );
-        const distanceToCenter = map.distance([latitude, longitude], [
-          item.latitude,
-          item.longitude,
-        ]);
+        const distanceToCenter = haversineDistanceMeters(
+          { lat: latitude, lng: longitude },
+          { lat: item.latitude, lng: item.longitude },
+        );
         radius = Math.max(radius, distanceToCenter + scaledRadius);
       });
 
@@ -312,10 +339,14 @@ function FlatMapView({
   }, [groupedMemories, zoomLevel]);
 
   useEffect(() => {
-    if (!mapReady || !memoriesLayerRef.current) return;
-    memoriesLayerRef.current.clearLayers();
+    if (!mapReady || !googleRef.current || !mapRef.current) return;
+    const google = googleRef.current;
+    const map = mapRef.current;
+    clearOverlays(memoriesLayerRef);
+    clearOverlays(memoryCirclesRef);
+
     displayGroups.forEach((group) => {
-      const latLng = [group.latitude, group.longitude];
+      const latLng = { lat: group.latitude, lng: group.longitude };
       const radius = group.radius || group.memories[0]?.radiusM || 50;
       const tooltipText =
         group.memories.length > 1
@@ -324,54 +355,77 @@ function FlatMapView({
               group.memories[0].lastUnlockedAt,
             )}`;
       const variant = getGroupMediaVariant(group.memories);
-      const marker = L.marker(latLng, { icon: getMemoryPinIcon(variant) }).bindTooltip(tooltipText, {
-        direction: 'top',
+      const marker = new google.maps.Marker({
+        position: latLng,
+        map,
+        icon: getMemoryPinIcon(google, variant),
+        title: tooltipText.replace(/\n/g, ' '),
       });
-      marker.on('click', () => onSelectGroup?.(group));
-      marker.addTo(memoriesLayerRef.current);
+      marker.addListener('click', () => onSelectGroup?.(group));
+      memoriesLayerRef.current.push(marker);
 
       const pinStyle = MEMORY_PIN_STYLES[variant] || MEMORY_PIN_STYLES.text;
-      const circle = L.circle(latLng, {
+      const circle = new google.maps.Circle({
+        map,
+        center: latLng,
         radius,
-        color: pinStyle.stroke,
-        opacity: 0.35,
+        strokeColor: pinStyle.stroke,
+        strokeOpacity: 0.35,
+        strokeWeight: 2,
         fillColor: pinStyle.fill,
         fillOpacity: 0.15,
       });
-      circle.on('click', () => onSelectGroup?.(group));
-      circle.addTo(memoriesLayerRef.current);
+      circle.addListener('click', () => onSelectGroup?.(group));
+      memoryCirclesRef.current.push(circle);
     });
   }, [mapReady, displayGroups, onSelectGroup]);
 
   useEffect(() => {
-    if (!mapReady || !journeysLayerRef.current) return;
-    journeysLayerRef.current.clearLayers();
+    if (!mapReady || !googleRef.current || !mapRef.current) return;
+    clearOverlays(journeysLayerRef);
+    const google = googleRef.current;
+    const map = mapRef.current;
     journeyPaths.forEach((journey) => {
-      const latLngs = journey.points.map((pt) => [pt.latitude, pt.longitude]);
+      const latLngs = (journey.points || [])
+        .map((pt) => ({
+          lat: Number(pt.latitude),
+          lng: Number(pt.longitude),
+        }))
+        .filter((pt) => Number.isFinite(pt.lat) && Number.isFinite(pt.lng));
       if (latLngs.length < 2) return;
-      L.polyline(latLngs, {
-        color: journey.color || '#0ea5e9',
-        weight: 4,
-        opacity: 0.7,
-      }).addTo(journeysLayerRef.current);
+      const polyline = new google.maps.Polyline({
+        map,
+        path: latLngs,
+        strokeColor: journey.color || '#0ea5e9',
+        strokeWeight: 4,
+        strokeOpacity: 0.7,
+      });
+      journeysLayerRef.current.push(polyline);
     });
   }, [journeyPaths, mapReady]);
 
   useEffect(() => {
-    if (!mapReady || !mapRef.current || !focusBounds) return;
-    mapRef.current.fitBounds(
-      [
-        [focusBounds.minLat, focusBounds.minLng],
-        [focusBounds.maxLat, focusBounds.maxLng],
-      ],
-      { padding: [32, 32] },
+    if (!mapReady || !mapRef.current || !focusBounds || !googleRef.current) return;
+    const google = googleRef.current;
+    const bounds = new google.maps.LatLngBounds(
+      { lat: focusBounds.minLat, lng: focusBounds.minLng },
+      { lat: focusBounds.maxLat, lng: focusBounds.maxLng },
     );
+    mapRef.current.fitBounds(bounds, { top: 32, right: 32, bottom: 32, left: 32 });
   }, [focusBounds, mapReady]);
 
   return (
     <div className="map-wrapper">
       <div ref={mapContainerRef} className="map-canvas" />
-      {!hasLocation && (
+      {mapError && (
+        <div className="map-placeholder empty-state">
+          <p>{mapError}</p>
+          <Button variant="primary" onClick={() => window.location.reload()}>
+            Retry map
+          </Button>
+        </div>
+      )}
+      {!hasLocation && !mapError && (
         <div className="map-placeholder empty-state">
           <p>{locationError || 'Requesting your location...'}</p>
           <Button variant="primary" onClick={onRetryLocation}>
@@ -413,7 +467,7 @@ function MapView({
 
       <div
         className="map-fab"
-        style={{ right: isPanelOpen ? `calc(${panelWidth} + 1.5rem)` : '1.5rem' }}
+        style={{ right: 'var(--controls-gap)' }}
       >
         <span
           className="tooltip-anchor"

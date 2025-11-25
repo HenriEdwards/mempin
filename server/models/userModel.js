@@ -69,7 +69,7 @@ async function upsertGoogleUser({ googleId, email, name, avatarUrl }) {
      ON DUPLICATE KEY UPDATE
       email = VALUES(email),
       name = VALUES(name),
-      avatar_url = VALUES(avatar_url),
+      avatar_url = COALESCE(VALUES(avatar_url), avatar_url),
       updated_at = CURRENT_TIMESTAMP`,
     [googleId, email, name, avatarUrl],
   );

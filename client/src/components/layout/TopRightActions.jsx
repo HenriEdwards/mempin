@@ -1,29 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Button from '../ui/Button.jsx';
 import { useUI } from '../../context/UIContext.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
 import Input from '../ui/Input.jsx';
 
 const VISIBILITY_OPTIONS = ['public', 'followers', 'unlisted', 'private'];
-
-function ProfileIcon() {
-  return (
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5Z" />
-      <path d="M4 20a8 8 0 0 1 16 0" />
-    </svg>
-  );
-}
 
 function SearchIcon() {
   return (
@@ -56,17 +37,11 @@ function TopRightActions({
   onSearchChange,
 }) {
   const { openProfilePanel, closePanel, activePanel } = useUI();
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
   const [loggingOut, setLoggingOut] = useState(false);
+  const [avatarError, setAvatarError] = useState(false);
   const visibilitySet = filters?.visibilities || new Set(VISIBILITY_OPTIONS);
-  const isPanelOpen = Boolean(activePanel);
-  const panelWidthMap = {
-    profile: '480px',
-    userProfile: '480px',
-  };
-  const defaultPanelWidth = '480px';
-  const activePanelWidth = panelWidthMap[activePanel] || defaultPanelWidth;
-  const actionOffset = isPanelOpen ? `calc(${activePanelWidth} + 1.5rem)` : '1.5rem';
+  const actionOffset = 'var(--controls-gap)';
 
   const handleLogout = async () => {
     setLoggingOut(true);
@@ -85,9 +60,16 @@ function TopRightActions({
     openProfilePanel();
   };
 
-  return (
-    <div className={`map-actions ${isPanelOpen ? 'map-actions--panel-open' : ''}`} style={{ right: actionOffset }}>
+  const avatarFallback =
+    (user?.name?.[0] || user?.email?.[0] || 'U').toString().toUpperCase();
+  const showAvatarImage = Boolean(user?.avatarUrl && !avatarError);
 
+  useEffect(() => {
+    setAvatarError(false);
+  }, [user?.avatarUrl]);
+
+  return (
+    <div className="map-actions" style={{ right: actionOffset }}>
 
       <div className="filter-wrapper">
         <Button variant="ghost" onClick={onToggleFilter} aria-label="Filters">
@@ -198,10 +180,49 @@ function TopRightActions({
           </div>
         )}
       </div>
-      <Button variant="ghost" onClick={handleProfileClick} aria-label="Profile">
-        <ProfileIcon />
+      <Button
+        variant="ghost"
+        className="map-fab__button"
+        onClick={handleProfileClick}
+        aria-label={user?.name ? `Profile: ${user.name}` : 'Profile'}
+        title={user?.name || user?.email || 'Profile'}
+      >
+        <span className="map-avatar">
+          {showAvatarImage ? (
+            <img
+              src={user.avatarUrl}
+              alt=""
+              className="map-avatar__image"
+              onError={() => setAvatarError(true)}
+              referrerPolicy="no-referrer"
+            />
+          ) : (
+            <span className="map-avatar__fallback">{avatarFallback}</span>
+          )}
+        </span>
       </Button>
-            <Button
+      <Button
+        variant="ghost"
+        className="map-fab__button"
+        aria-label="Settings"
+        title="Settings"
+      >
+        <svg
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <circle cx="12" cy="12" r="3" />
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.34.3.8.48 1.27.48H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" />
+        </svg>
+      </Button>
+      <Button
         variant="ghost"
         onClick={handleLogout}
         aria-label="Logout"

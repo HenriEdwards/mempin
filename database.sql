@@ -17,7 +17,13 @@ CREATE TABLE users (
   email VARCHAR(255) NOT NULL,
   name VARCHAR(255) DEFAULT NULL,
   handle VARCHAR(20) DEFAULT NULL,       -- unique @handle (lowercase)
-  avatar_url VARCHAR(512) DEFAULT NULL,
+
+  -- AVATAR FIELDS (future-proof)
+  avatar_url VARCHAR(512) DEFAULT NULL,           -- public URL used in UI
+  avatar_storage_key VARCHAR(512) DEFAULT NULL,   -- internal storage path (S3/MinIO)
+  avatar_updated_at DATETIME DEFAULT NULL,        -- cache-bust
+  has_custom_avatar TINYINT(1) NOT NULL DEFAULT 0,
+
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
@@ -49,29 +55,48 @@ CREATE TABLE memories (
   owner_id BIGINT UNSIGNED NOT NULL,
   journey_id BIGINT UNSIGNED NULL,
   journey_step INT NULL,
+
   title VARCHAR(255) NOT NULL,
   short_description VARCHAR(255) DEFAULT NULL,
   body TEXT DEFAULT NULL,
   tags VARCHAR(255) DEFAULT NULL, -- comma-separated tags, eg: "love,travel"
   visibility ENUM('public','private','followers','unlisted') NOT NULL DEFAULT 'public',
-  latitude DECIMAL(9,6) NOT NULL,
+
+  -- CORE LOCATION (keep using this for map rendering)
+  latitude  DECIMAL(9,6) NOT NULL,
   longitude DECIMAL(9,6) NOT NULL,
   radius_m INT NOT NULL DEFAULT 50,  -- distance (in meters) required to unlock
+
+  -- NEW: GOOGLE / HUMAN-FRIENDLY LOCATION METADATA
+  google_place_id VARCHAR(128) DEFAULT NULL,
+  location_label  VARCHAR(255) DEFAULT NULL,  -- e.g. "Cape Town, South Africa"
+  country_code    CHAR(2) DEFAULT NULL,       -- "ZA"
+  country_name    VARCHAR(100) DEFAULT NULL,  -- "South Africa"
+  admin_area_1    VARCHAR(100) DEFAULT NULL,  -- province / state
+  admin_area_2    VARCHAR(100) DEFAULT NULL,  -- city / municipality
+  location_raw    JSON DEFAULT NULL,          -- store full geocode/places payload
+
   is_active TINYINT(1) NOT NULL DEFAULT 1,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  expires_at DATETIME NULL,   -- NULL = forever, otherwise exact expiry timestamp
+  expires_at DATETIME NULL,   -- NULL = forever, otherwise exact expiry timestamp,
+
   PRIMARY KEY (id),
   KEY idx_memories_owner (owner_id),
   KEY idx_memories_location (latitude, longitude),
   KEY idx_memories_journey (journey_id, journey_step),
+  KEY idx_memories_country (country_code),
+  KEY idx_memories_place_id (google_place_id),
+
   CONSTRAINT fk_memories_owner
     FOREIGN KEY (owner_id) REFERENCES users(id)
     ON DELETE CASCADE,
+
   CONSTRAINT fk_memories_journey
     FOREIGN KEY (journey_id) REFERENCES journeys(id)
     ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 
 
 -- MEMORY ASSETS: Images / audio belonging to a memory

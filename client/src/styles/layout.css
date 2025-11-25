@@ -8,8 +8,9 @@
 :root {
   --panel-width: 480px;
   --panel-gap: 1.25rem;
-  --panel-top-gap: 3.5rem;
-  --panel-bottom-gap: 4.5rem;
+  --panel-top-gap: 5.5rem;
+  --panel-bottom-gap: 5.25rem;
+  --controls-gap: 1.5rem;
 }
 
 .layout-content {
@@ -159,8 +160,8 @@
 
 .map-brand {
   position: fixed;
-  top: 1rem;
-  left: 1rem;
+  top: var(--controls-gap);
+  left: var(--controls-gap);
   z-index: 2400;
   background: var(--color-surface-alt);
   color: var(--color-text);
@@ -184,21 +185,64 @@
 
 .map-actions {
   position: fixed;
-  top: 1.5rem;
-  right: 1.5rem;
+  top: var(--controls-gap);
+  right: var(--controls-gap);
   z-index: 2100;
   display: flex;
   gap: 0.75rem;
-  align-items: flex-start;
+  align-items: center;
   transition: right 0.25s ease;
 }
 
-.map-actions--panel-open {
-  pointer-events: none;
+.map-avatar-button {
+  min-width: 0 !important;
+  min-height: 0 !important;
+  height: 42px;
+  width: 52px;
+  flex: 0 0 52px;
+  padding: 4px;
+  border-radius: 0.9rem;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.map-actions--panel-open > * {
-  pointer-events: auto;
+.map-actions .map-avatar-button {
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-soft);
+  padding: 4px;
+  min-width: 52px;
+  min-height: 42px;
+  flex: 0 0 52px;
+}
+
+.map-avatar {
+  display: inline-flex;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: linear-gradient(145deg, rgba(37, 99, 235, 0.15), rgba(16, 185, 129, 0.15));
+  border: 2px solid var(--color-primary);
+}
+
+.map-avatar__image {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.map-avatar__fallback {
+  font-weight: 700;
+  color: var(--color-text);
+  font-size: 0.95rem;
 }
 
 .filter-wrapper {
@@ -280,8 +324,8 @@
 
 .map-fab {
   position: absolute;
-  right: 1.5rem;
-  bottom: 1.5rem;
+  right: var(--controls-gap);
+  bottom: var(--controls-gap);
   z-index: 1200;
   transition: right 0.25s ease;
 }
@@ -306,9 +350,14 @@
 
 .map-theme-toggle {
   position: fixed;
-  left: 1.5rem;
-  bottom: 1.5rem;
+  left: var(--controls-gap);
+  bottom: var(--controls-gap);
   z-index: 1200;
+}
+
+/* Reposition Google bundled control cluster (zoom/pan) to bottom center */
+.map-canvas .gm-bundled-control {
+  display: none !important;
 }
 
 .empty-state {
@@ -375,10 +424,9 @@
 
 .sliding-panel__content {
   position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  height: auto;
+  top: var(--panel-top-gap);
+  right: var(--panel-gap);
+  bottom: var(--panel-bottom-gap);
   background: var(--color-surface-alt);
   box-shadow: -12px 0 30px rgba(0, 0, 0, 0.15);
   display: flex;
@@ -388,7 +436,7 @@
   transition: transform 0.2s ease;
   pointer-events: auto;
   border-radius: 0.75rem;
-  margin: 1rem 0;
+  margin: 0;
 }
 
 .sliding-panel--left .sliding-panel__content {

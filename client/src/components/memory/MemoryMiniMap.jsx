@@ -1,15 +1,14 @@
-import { useEffect, useRef } from 'react';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
-
-const TILE_URL = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
-const TILE_ATTRIBUTION = '&copy; OpenStreetMap contributors';
+import { useEffect, useRef, useState } from 'react';
+import loadGoogleMapsApi from '../../utils/googleMaps.js';
 
 function MemoryMiniMap({ latitude, longitude, radiusM }) {
   const mapContainerRef = useRef(null);
   const mapRef = useRef(null);
+  const googleRef = useRef(null);
   const markerRef = useRef(null);
   const circleRef = useRef(null);
+  const coordsRef = useRef({ lat: 0, lng: 0, roundedRadius: 25 });
+  const [mapError, setMapError] = useState('');
 
   const lat = Number(latitude);
   const lng = Number(longitude);
@@ -19,67 +18,89 @@ function MemoryMiniMap({ latitude, longitude, radiusM }) {
   const roundedRadius = Math.max(Math.round(radiusM || 0), 25);
 
   useEffect(() => {
-    if (!mapContainerRef.current || mapRef.current || !hasCoords) return;
+    coordsRef.current = { lat, lng, roundedRadius };
+  }, [lat, lng, roundedRadius]);
 
-    const map = L.map(mapContainerRef.current, {
-      center: [lat, lng],
-      zoom: 15,
-      zoomControl: false,
-      attributionControl: false,
-      dragging: false,
-      scrollWheelZoom: false,
-      doubleClickZoom: false,
-      boxZoom: false,
-      keyboard: false,
-      tap: false,
-    });
+  useEffect(() => {
+    if (!mapContainerRef.current || mapRef.current || !hasCoords) return undefined;
+    let isCancelled = false;
+    setMapError('');
+    const { lat: currentLat, lng: currentLng, roundedRadius: currentRadius } = coordsRef.current;
 
-    L.tileLayer(TILE_URL, {
-      attribution: TILE_ATTRIBUTION,
-      maxZoom: 19,
-    }).addTo(map);
+    loadGoogleMapsApi()
+      .then((google) => {
+        if (isCancelled || mapRef.current) return;
+        googleRef.current = google;
 
-    markerRef.current = L.circleMarker([lat, lng], {
-      radius: 6,
-      color: '#04ddff',
-      weight: 2,
-      fillColor: '#04ddff',
-      fillOpacity: 0.9,
-    }).addTo(map);
+        const map = new google.maps.Map(mapContainerRef.current, {
+          center: { lat: currentLat, lng: currentLng },
+          zoom: 15,
+          disableDefaultUI: true,
+          gestureHandling: 'none',
+          clickableIcons: false,
+          keyboardShortcuts: false,
+        });
+        mapRef.current = map;
 
-    circleRef.current = L.circle([lat, lng], {
-      radius: roundedRadius,
-      color: '#04ddff',
-      fillColor: '#04ddff',
-      fillOpacity: 0.08,
-      weight: 2,
-    }).addTo(map);
+        markerRef.current = new google.maps.Marker({
+          position: { lat: currentLat, lng: currentLng },
+          map,
+          icon: {
+            path: google.maps.SymbolPath.CIRCLE,
+            scale: 6,
+            strokeColor: '#04ddff',
+            strokeWeight: 2,
+            fillColor: '#04ddff',
+            fillOpacity: 0.9,
+          },
+        });
 
-    mapRef.current = map;
+        circleRef.current = new google.maps.Circle({
+          map,
+          center: { lat: currentLat, lng: currentLng },
+          radius: currentRadius,
+          strokeColor: '#04ddff',
+          strokeOpacity: 0.6,
+          strokeWeight: 2,
+          fillColor: '#04ddff',
+          fillOpacity: 0.08,
+        });
+      })
+      .catch((error) => {
+        if (isCancelled) return;
+        console.error('Failed to load Google Maps', error);
+        setMapError('Map unavailable right now.');
+      });
 
     return () => {
-      mapRef.current?.remove();
+      isCancelled = true;
+      markerRef.current?.setMap(null);
+      circleRef.current?.setMap(null);
       mapRef.current = null;
       markerRef.current = null;
       circleRef.current = null;
+      googleRef.current = null;
     };
-  }, [hasCoords, lat, lng, roundedRadius]);
+  }, [hasCoords]);
 
   useEffect(() => {
-    if (!mapRef.current || !hasCoords) return;
-    const nextCenter = [lat, lng];
-    mapRef.current.setView(nextCenter, 15);
-    markerRef.current?.setLatLng(nextCenter);
-    circleRef.current?.setLatLng(nextCenter);
+    if (!mapRef.current || !googleRef.current || !hasCoords) return;
+    const center = { lat, lng };
+    mapRef.current.setCenter(center);
+    mapRef.current.setZoom(15);
+    markerRef.current?.setPosition(center);
+    circleRef.current?.setCenter(center);
     circleRef.current?.setRadius(roundedRadius);
   }, [lat, lng, roundedRadius, hasCoords]);
 
   useEffect(() => {
     if (hasCoords || !mapRef.current) return;
-    mapRef.current?.remove();
+    markerRef.current?.setMap(null);
+    circleRef.current?.setMap(null);
     mapRef.current = null;
     markerRef.current = null;
     circleRef.current = null;
+    googleRef.current = null;
   }, [hasCoords]);
 
   return (
@@ -96,6 +117,9 @@ function MemoryMiniMap({ latitude, longitude, radiusM }) {
         <div className="memory-mini-map__visual">
           <div className="memory-mini-map__map" ref={mapContainerRef} />
           {!hasCoords && <div className="memory-mini-map__empty">No location available</div>}
+          {mapError && hasCoords && (
+            <div className="memory-mini-map__empty">{mapError}</div>
+          )}
         </div>
       </div>
     </div>
