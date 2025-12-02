@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import SlidingPanel from '../layout/SlidingPanel.jsx';
 import Button from '../ui/Button.jsx';
 import api from '../../services/api.js';
 import ProfileTabsContent from './ProfileTabsContent.jsx';
@@ -59,42 +58,33 @@ function UserProfilePanel({
     }
   };
 
+  if (!isOpen) {
+    return null;
+  }
+
   return (
-    <SlidingPanel isOpen={isOpen} onClose={onClose} title="" hideHeader width="480px">
-      <div className="profile-page profile-page--public">
-        {loading && <p>Loading profile...</p>}
-        {error && <p className="error-text">{error}</p>}
-        {profile && (
-          <>
-            {/* <h2>{profile.name || `@${profile.handle}`}</h2> */}
-            <ProfileTabsContent
-              isOpen={isOpen}
-              profileHandle={profile?.handle || ''}
-              stats={profile?.stats || {}}
-              placedMemories={placedMemories}
-              foundMemories={foundMemories}
-              journeys={journeys}
-              journeyMemories={journeyMemories}
-              journeyVisibilityMap={journeyVisibilityMap}
-              onSelectMemory={onSelectMemory}
-              onOpenProfile={onOpenProfile}
-              onOpenJourneyPanel={onOpenJourneyPanel}
-              followingTabProps={{ hideSuggestions: true, profileHandle: profile?.handle || '' }}
-            />
-          </>
-        )}
-      </div>
-      <button
-        type="button"
-        className="profile-back-button"
-        onClick={onClose}
-        aria-label="Back to map"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#e3e3e3">
-          <path d="M400-80 0-480l400-400 71 71-329 329 329 329-71 71Z" />
-        </svg>
-      </button>
-    </SlidingPanel>
+    <div className="profile-page profile-page--public">
+      {loading && <p>Loading profile...</p>}
+      {error && <p className="error-text">{error}</p>}
+      {profile && (
+        <>
+          <ProfileTabsContent
+            isOpen={isOpen}
+            profileHandle={profile?.handle || ''}
+            stats={profile?.stats || {}}
+            placedMemories={placedMemories}
+            foundMemories={foundMemories}
+            journeys={journeys}
+            journeyMemories={journeyMemories}
+            journeyVisibilityMap={journeyVisibilityMap}
+            onSelectMemory={onSelectMemory}
+            onOpenProfile={onOpenProfile}
+            onOpenJourneyPanel={onOpenJourneyPanel}
+            followingTabProps={{ hideSuggestions: true, profileHandle: profile?.handle || '' }}
+          />
+        </>
+      )}
+    </div>
   );
 }
 

@@ -21,7 +21,7 @@ function formatExpiry(value) {
   return date.getTime() <= Date.now() ? `Expired · ${formatted}` : formatted;
 }
 
-function MemoryDetailsContent({ memory, onGenerateQR, onViewProfile }) {
+function MemoryDetailsContent({ memory, onGenerateQR, onViewProfile, onNavigate, onOpenExternal }) {
   if (!memory) return null;
   const [lightboxIndex, setLightboxIndex] = useState(null);
   const imageAssets = useMemo(
@@ -83,6 +83,28 @@ function MemoryDetailsContent({ memory, onGenerateQR, onViewProfile }) {
           <Button variant="outline" onClick={() => onGenerateQR(shareUrl)}>
             Generate QR code
           </Button>
+        )}
+        {(onOpenExternal || onNavigate) && (
+          <div className="memory-details__actions">
+            {onOpenExternal && (
+              <Button
+                variant="ghost"
+                onClick={() => onOpenExternal(memory)}
+                aria-label="View on Google Maps"
+              >
+                View on Google Maps
+              </Button>
+            )}
+            {onNavigate && (
+              <Button
+                variant="primary"
+                onClick={() => onNavigate(memory)}
+                aria-label="Navigate to this memory"
+              >
+                Navigate
+              </Button>
+            )}
+          </div>
         )}
       </div>
       <div className="memory-details__stats">

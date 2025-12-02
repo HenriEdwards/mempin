@@ -1,17 +1,26 @@
 import { createContext, useCallback, useContext, useMemo, useState } from 'react';
-import { normalizeHandle } from '../utils/handles';
+import { normalizeHandle } from '../utils/handles.js';
+
+const panelTemplate = {
+  left: { view: null, payload: null },
+  center: { view: null, payload: null },
+  right: { view: null, payload: null },
+};
+
+function createDefaultPanels() {
+  return {
+    left: { ...panelTemplate.left },
+    center: { ...panelTemplate.center },
+    right: { ...panelTemplate.right },
+  };
+}
 
 const UIContext = createContext({
-  activePanel: null,
-  isMemoriesPanelOpen: false,
-  isProfilePanelOpen: false,
-  isFollowersPanelOpen: false,
-  isJourneysPanelOpen: false,
-  isFollowersPanelOpen: false,
-  isFollowingPanelOpen: false,
-  isUserProfilePanelOpen: false,
-  isUserMemoriesPanelOpen: false,
-  isUserJourneysPanelOpen: false,
+  panels: panelTemplate,
+  leftView: null,
+  centerView: null,
+  rightView: null,
+  rightHistory: [],
   userProfileHandle: '',
   userProfileActions: {
     isFollowing: false,
@@ -20,20 +29,27 @@ const UIContext = createContext({
   },
   openPanel: () => {},
   closePanel: () => {},
-  openMemoriesPanel: () => {},
-  closeMemoriesPanel: () => {},
   openProfilePanel: () => {},
+  openUserProfilePanel: () => {},
+  goBackFromUserProfile: () => {},
+  openMemoriesPanel: () => {},
   openFollowersPanel: () => {},
   openFollowingPanel: () => {},
-  openJourneysPanel: () => {},
-  openUserProfilePanel: () => {},
-  openUserMemoriesPanel: () => {},
-  openUserJourneysPanel: () => {},
+  openSocialPanel: () => {},
+  openMemoryDetailsPanel: () => {},
+  openClusterPanel: () => {},
+  openCreateMemoryPanel: () => {},
+  openPricingPanel: () => {},
+  resetRightPanel: () => {},
+  goBackRightPanel: () => {},
+  closeLeftPanel: () => {},
+  closeCenterPanel: () => {},
 });
 
 export function UIProvider({ children }) {
-  const [activePanel, setActivePanel] = useState(null);
-  const [previousPanel, setPreviousPanel] = useState(null);
+  const [panels, setPanels] = useState(() => createDefaultPanels());
+  const [rightHistory, setRightHistory] = useState([]);
+  const [leftHistory, setLeftHistory] = useState(null);
   const [userProfileHandle, setUserProfileHandle] = useState('');
   const [userProfileActions, setUserProfileActions] = useState({
     isFollowing: false,
@@ -41,16 +57,9 @@ export function UIProvider({ children }) {
     onUnfollow: null,
   });
 
-  const openPanel = useCallback((panel) => {
-    setActivePanel((current) => {
-      if (panel === current) return current;
-      setPreviousPanel(current);
-      return panel;
-    });
-  }, []);
-  const closePanel = useCallback(() => {
-    setActivePanel(null);
-    setPreviousPanel(null);
+  const closeLeftPanel = useCallback(() => {
+    setPanels((prev) => ({ ...prev, left: panelTemplate.left }));
+    setLeftHistory(null);
     setUserProfileHandle('');
     setUserProfileActions({
       isFollowing: false,
@@ -58,89 +67,204 @@ export function UIProvider({ children }) {
       onUnfollow: null,
     });
   }, []);
-  const goBackFromUserProfile = useCallback(() => {
-    setActivePanel((current) => {
-      if (current === 'userProfile' && previousPanel) {
-        return previousPanel;
+
+  const closeCenterPanel = useCallback(() => {
+    setPanels((prev) => ({ ...prev, center: panelTemplate.center }));
+  }, []);
+
+  const resetRightPanel = useCallback(() => {
+    setRightHistory([]);
+    setPanels((prev) => ({ ...prev, right: panelTemplate.right }));
+  }, []);
+
+  const goBackRightPanel = useCallback(() => {
+    setRightHistory((history) => {
+      if (!history.length) {
+        setPanels((prev) => ({ ...prev, right: panelTemplate.right }));
+        return [];
       }
-      return null;
+      const nextHistory = [...history];
+      const previous = nextHistory.pop();
+      setPanels((prev) => ({ ...prev, right: previous || panelTemplate.right }));
+      return nextHistory;
     });
-    setPreviousPanel(null);
+  }, []);
+
+  const openProfilePanel = useCallback(() => {
+    setLeftHistory(null);
+    setPanels((prev) => ({ ...prev, left: { view: 'profile', payload: null } }));
+  }, []);
+
+  const openUserProfilePanel = useCallback((handle, actions = {}) => {
+    const normalized = normalizeHandle(handle);
+    if (!normalized) return;
+    setPanels((prev) => {
+      setLeftHistory(prev.left);
+      return {
+        ...prev,
+        left: { view: 'userProfile', payload: { handle: normalized } },
+      };
+    });
+    setUserProfileHandle(normalized);
+    setUserProfileActions({
+      isFollowing: Boolean(actions.isFollowing),
+      onFollow: actions.onFollow || null,
+      onUnfollow: actions.onUnfollow || null,
+    });
+  }, []);
+
+  const goBackFromUserProfile = useCallback(() => {
+    setPanels((prev) => ({
+      ...prev,
+      left: leftHistory || panelTemplate.left,
+    }));
+    setLeftHistory(null);
     setUserProfileHandle('');
     setUserProfileActions({
       isFollowing: false,
       onFollow: null,
       onUnfollow: null,
     });
-  }, [previousPanel]);
-  const openMemoriesPanel = useCallback(() => openPanel('memories'), [openPanel]);
-  const openProfilePanel = useCallback(() => openPanel('profile'), [openPanel]);
-  const openFollowersPanel = useCallback(() => {
-    setActivePanel((current) => (current === 'followersList' ? null : 'followersList'));
-  }, []);
-  const openFollowingPanel = useCallback(() => {
-    setActivePanel((current) => (current === 'followingList' ? null : 'followingList'));
-  }, []);
-  const openJourneysPanel = useCallback(() => openPanel('journeys'), [openPanel]);
-  const openUserMemoriesPanel = useCallback(() => openPanel('userMemories'), [openPanel]);
-  const openUserJourneysPanel = useCallback(() => openPanel('userJourneys'), [openPanel]);
-  const openUserProfilePanel = useCallback(
-    (handle, actions = {}) => {
-      const normalized = normalizeHandle(handle);
-      if (!normalized) return;
-      setUserProfileHandle(normalized);
-      setUserProfileActions({
-        isFollowing: Boolean(actions.isFollowing),
-        onFollow: actions.onFollow || null,
-        onUnfollow: actions.onUnfollow || null,
-      });
-      openPanel('userProfile');
+  }, [leftHistory]);
+
+  const openMemoriesPanel = useCallback(
+    (payload = null) => {
+      setRightHistory([]);
+      setPanels((prev) => ({ ...prev, right: { view: 'memories', payload } }));
     },
-    [openPanel],
+    [],
   );
+
+  const openSocialPanel = useCallback(
+    (mode = 'followers', handle = '') => {
+      setRightHistory([]);
+      setPanels((prev) => ({
+        ...prev,
+        right: { view: 'social', payload: { mode, handle: normalizeHandle(handle) || null } },
+      }));
+    },
+    [],
+  );
+
+  const openFollowersPanel = useCallback((handle) => openSocialPanel('followers', handle), [openSocialPanel]);
+  const openFollowingPanel = useCallback((handle) => openSocialPanel('following', handle), [openSocialPanel]);
+
+  const openClusterPanel = useCallback((group) => {
+    setRightHistory([]);
+    setPanels((prev) => ({ ...prev, right: { view: 'cluster', payload: group || null } }));
+  }, []);
+
+  const openMemoryDetailsPanel = useCallback((payload, options = {}) => {
+    setPanels((prev) => {
+      if (options.pushHistory) {
+        setRightHistory((history) => [...history, prev.right]);
+      }
+      return {
+        ...prev,
+        right: { view: 'memoryDetails', payload },
+      };
+    });
+  }, []);
+
+  const openCreateMemoryPanel = useCallback(() => {
+    setPanels((prev) => ({ ...prev, center: { view: 'newMemory', payload: null } }));
+  }, []);
+
+  const openPricingPanel = useCallback(() => {
+    setPanels((prev) => ({ ...prev, center: { view: 'pricing', payload: null } }));
+  }, []);
+
+  const openPanel = useCallback(
+    (panel) => {
+      switch (panel) {
+        case 'profile':
+          openProfilePanel();
+          break;
+        case 'followers':
+        case 'followersList':
+          openFollowersPanel();
+          break;
+        case 'following':
+        case 'followingList':
+          openFollowingPanel();
+          break;
+        case 'memories':
+          openMemoriesPanel();
+          break;
+        case 'pricing':
+          openPricingPanel();
+          break;
+        case 'newMemory':
+          openCreateMemoryPanel();
+          break;
+        default:
+          break;
+      }
+    },
+    [openProfilePanel, openFollowersPanel, openFollowingPanel, openMemoriesPanel, openPricingPanel, openCreateMemoryPanel],
+  );
+
+  const closePanel = useCallback(() => {
+    setPanels(createDefaultPanels());
+    setLeftHistory(null);
+    setRightHistory([]);
+    setUserProfileHandle('');
+    setUserProfileActions({
+      isFollowing: false,
+      onFollow: null,
+      onUnfollow: null,
+    });
+  }, []);
 
   const value = useMemo(
     () => ({
-      activePanel,
-      isMemoriesPanelOpen: activePanel === 'memories',
-      isProfilePanelOpen: activePanel === 'profile',
-      isFollowersPanelOpen: activePanel === 'followers',
-      isJourneysPanelOpen: activePanel === 'journeys',
-      isFollowersPanelOpen: activePanel === 'followersList',
-      isFollowingPanelOpen: activePanel === 'followingList',
-      isUserProfilePanelOpen: activePanel === 'userProfile',
-      isUserMemoriesPanelOpen: activePanel === 'userMemories',
-      isUserJourneysPanelOpen: activePanel === 'userJourneys',
+      panels,
+      leftView: panels.left.view,
+      centerView: panels.center.view,
+      rightView: panels.right.view,
+      rightHistory,
       userProfileHandle,
       userProfileActions,
       openPanel,
       closePanel,
+      openProfilePanel,
+      openUserProfilePanel,
       goBackFromUserProfile,
       openMemoriesPanel,
-      closeMemoriesPanel: closePanel,
-      openProfilePanel,
       openFollowersPanel,
       openFollowingPanel,
-      openFollowersPanel,
-      openJourneysPanel,
-      openUserProfilePanel,
-      openUserMemoriesPanel,
-      openUserJourneysPanel,
+      openSocialPanel,
+      openMemoryDetailsPanel,
+      openClusterPanel,
+      openCreateMemoryPanel,
+      openPricingPanel,
+      resetRightPanel,
+      goBackRightPanel,
+      closeLeftPanel,
+      closeCenterPanel,
     }),
     [
-      activePanel,
-      openPanel,
-      closePanel,
-      goBackFromUserProfile,
-      openMemoriesPanel,
-      openProfilePanel,
-      openFollowersPanel,
-      openJourneysPanel,
-      openFollowersPanel,
-      openFollowingPanel,
+      panels,
+      rightHistory,
       userProfileHandle,
       userProfileActions,
+      openPanel,
+      closePanel,
+      openProfilePanel,
       openUserProfilePanel,
+      goBackFromUserProfile,
+      openMemoriesPanel,
+      openFollowersPanel,
+      openFollowingPanel,
+      openSocialPanel,
+      openMemoryDetailsPanel,
+      openClusterPanel,
+      openCreateMemoryPanel,
+      openPricingPanel,
+      resetRightPanel,
+      goBackRightPanel,
+      closeLeftPanel,
+      closeCenterPanel,
     ],
   );
 

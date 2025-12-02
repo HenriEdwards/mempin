@@ -4,7 +4,14 @@ import Modal from '../ui/Modal.jsx';
 import SlidingPanel from '../layout/SlidingPanel.jsx';
 import MemoryDetailsContent from './MemoryDetailsContent.jsx';
 
-function MemoryDetailsModal({ memory, onClose, loading = false, onViewProfile }) {
+function MemoryDetailsModal({
+  memory,
+  onClose,
+  loading = false,
+  onViewProfile,
+  onNavigate,
+  onOpenExternal,
+}) {
   const [qrValue, setQrValue] = useState(null);
 
   useEffect(() => {
@@ -30,7 +37,7 @@ function MemoryDetailsModal({ memory, onClose, loading = false, onViewProfile })
         onClose={onClose}
         title="Memory"
         side="left"
-        width="520px"
+        width="var(--panel-width)"
         showCloseButton
       >
         {loading ? (
@@ -40,6 +47,8 @@ function MemoryDetailsModal({ memory, onClose, loading = false, onViewProfile })
             memory={memory}
             onGenerateQR={handleGenerateQR}
             onViewProfile={onViewProfile}
+            onNavigate={onNavigate}
+            onOpenExternal={onOpenExternal}
           />
         )}
       </SlidingPanel>

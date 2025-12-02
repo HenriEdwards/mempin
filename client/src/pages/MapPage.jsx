@@ -7,11 +7,11 @@ import Button from '../components/ui/Button.jsx';
 import Input from '../components/ui/Input.jsx';
 import Toast from '../components/ui/Toast.jsx';
 import OverlappingMemoryPanel from '../components/memory/OverlappingMemoryPanel.jsx';
-import MemoryDetailsModal from '../components/memory/MemoryDetailsModal.jsx';
+import MemoryDetailsContent from '../components/memory/MemoryDetailsContent.jsx';
+import MemoriesPanel from '../components/memory/MemoriesPanel.jsx';
 import TopRightActions from '../components/layout/TopRightActions.jsx';
 import ProfilePanel from '../components/profile/ProfilePanel.jsx';
 import UserProfilePanel from '../components/profile/UserProfilePanel.jsx';
-import SlidingPanel from '../components/layout/SlidingPanel.jsx';
 import ProfileFollowersTab from '../components/profile/ProfileFollowersTab.jsx';
 import ProfileFollowingTab from '../components/profile/ProfileFollowingTab.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -41,13 +41,24 @@ function useToast() {
 function MapPage() {
   const { user, status, isGuest, loginAsGuest, refresh } = useAuth();
   const {
-    activePanel,
-    closePanel,
+    panels,
+    leftView,
+    centerView,
+    rightView,
+    rightHistory,
+    closeLeftPanel,
+    closeCenterPanel,
     goBackFromUserProfile,
     openUserProfilePanel,
     openProfilePanel,
     openFollowersPanel,
     openFollowingPanel,
+    openMemoriesPanel,
+    openClusterPanel,
+    openMemoryDetailsPanel,
+    openCreateMemoryPanel,
+    resetRightPanel,
+    goBackRightPanel,
     userProfileHandle,
     userProfileActions,
   } = useUI();
@@ -63,6 +74,7 @@ function MapPage() {
   const [placingMemory, setPlacingMemory] = useState(false);
   const [savingMemory, setSavingMemory] = useState(false);
   const [selectedMemory, setSelectedMemory] = useState(null);
+  const [selectedMemoryPushHistory, setSelectedMemoryPushHistory] = useState(false);
   const [unlocking, setUnlocking] = useState(false);
   const [unlockError, setUnlockError] = useState('');
   const [memoryGroupSelection, setMemoryGroupSelection] = useState(null);
@@ -88,6 +100,16 @@ function MapPage() {
   const [userJourneysTarget, setUserJourneysTarget] = useState(null);
   const [journeyPanel, setJourneyPanel] = useState(null);
   const [journeyPanelSearch, setJourneyPanelSearch] = useState('');
+  const [navigationTarget, setNavigationTarget] = useState(null);
+  const [navigationOrigin, setNavigationOrigin] = useState('');
+  const [navigationMode, setNavigationMode] = useState('DRIVING');
+  const [navigationSummary, setNavigationSummary] = useState(null);
+  const [navigationError, setNavigationError] = useState('');
+  const [navigationRequest, setNavigationRequest] = useState(null);
+  const [viewportWidth, setViewportWidth] = useState(
+    typeof window !== 'undefined' ? window.innerWidth : 1440,
+  );
+  const isMobile = viewportWidth <= 1024;
   const suggestedTags = useMemo(() => {
     const tagSet = new Set();
     placedMemories.forEach((memory) => {
@@ -139,6 +161,12 @@ function MapPage() {
   useEffect(() => {
     requestLocation();
   }, [requestLocation]);
+
+  useEffect(() => {
+    const handleResize = () => setViewportWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const loadConnections = useCallback(async () => {
     if (!user) {
@@ -350,6 +378,7 @@ function MapPage() {
       const response = await api.createMemory(formData);
       pushToast('Memory placed successfully');
       setPlacingMemory(false);
+      closeCenterPanel();
       setAllMemories((prev) => {
         const filtered = prev.filter((memory) => memory.id !== response.memory.id);
         return [...filtered, response.memory];
@@ -379,10 +408,10 @@ function MapPage() {
   }, [allMemories, foundMemories, userMemoriesTarget]);
 
   useEffect(() => {
-    if (activePanel !== 'userProfile') {
+    if (leftView !== 'userProfile') {
       setUserMemoriesTarget(null);
     }
-  }, [activePanel]);
+  }, [leftView]);
 
   const userJourneysData = useMemo(() => {
     if (!userJourneysTarget?.handle) {
@@ -424,17 +453,17 @@ function MapPage() {
   }, [allMemories, userJourneysTarget]);
 
   useEffect(() => {
-    if (activePanel !== 'userProfile') {
+    if (leftView !== 'userProfile') {
       setUserJourneysTarget(null);
     }
-  }, [activePanel]);
+  }, [leftView]);
 
   useEffect(() => {
-    if (activePanel !== 'profile' && activePanel !== 'userProfile') {
+    if (leftView !== 'profile' && leftView !== 'userProfile') {
       setJourneyPanel(null);
       setJourneyPanelSearch('');
     }
-  }, [activePanel]);
+  }, [leftView]);
 
   const fetchMemoryDetails = useCallback(
     async (memoryId) => {
@@ -463,7 +492,13 @@ function MapPage() {
         longitude: userLocation.longitude,
       });
       setSelectedMemory(null);
-      setDetailMemory(response.memory);
+      const unlockedMemory = response.memory;
+      setDetailMemory(unlockedMemory);
+      openMemoryDetailsPanel(
+        { memoryId: unlockedMemory.id },
+        { pushHistory: selectedMemoryPushHistory },
+      );
+      setSelectedMemoryPushHistory(false);
       loadPersonalMemories();
       await loadAllMemories().catch(() => {});
       pushToast('Memory unlocked');
@@ -501,21 +536,25 @@ function MapPage() {
     [allMemories],
   );
 
-  const handleMemoryFromPanel = useCallback(
-    (memory) => {
-      closePanel();
+  const openMemoryDetails = useCallback(
+    (memory, { pushHistory = false } = {}) => {
+      if (!memory?.id) return;
+      setDetailMemory(null);
+      openMemoryDetailsPanel({ memoryId: memory.id }, { pushHistory });
       fetchMemoryDetails(memory.id);
     },
-    [closePanel, fetchMemoryDetails],
+    [fetchMemoryDetails, openMemoryDetailsPanel],
   );
 
   const processMemorySelection = useCallback(
-    (memory) => {
+    (memory, options = {}) => {
       if (!memory) return;
       setUnlockError('');
+      const pushHistory = Boolean(options.pushHistory);
 
       if (!user) {
         setSelectedMemory(memory);
+        setSelectedMemoryPushHistory(pushHistory);
         return;
       }
 
@@ -524,57 +563,14 @@ function MapPage() {
         placedMemories.find((item) => item.id === memory.id);
 
       if (unlockedEntry) {
-        fetchMemoryDetails(memory.id);
+        openMemoryDetails(memory, { pushHistory });
         return;
       }
 
       setSelectedMemory(memory);
+      setSelectedMemoryPushHistory(pushHistory);
     },
-    [user, foundMemories, placedMemories, fetchMemoryDetails],
-  );
-
-  const handleGroupSelection = useCallback(
-    (group) => {
-      if (!group) return;
-      if (group.memories.length > 1) {
-        setMemoryGroupSelection(group);
-        return;
-      }
-      processMemorySelection(group.memories[0]);
-    },
-    [processMemorySelection],
-  );
-
-  const handleMemoryFromGroup = useCallback(
-    (memory) => {
-      setMemoryGroupSelection(null);
-      processMemorySelection(memory);
-    },
-    [processMemorySelection],
-  );
-
-  const mapProps = useMemo(
-    () => ({
-      userLocation,
-      locationError,
-      onRetryLocation: requestLocation,
-      memories: filteredMemories,
-      onSelectGroup: handleGroupSelection,
-      onRequestPlace: () => setPlacingMemory(true),
-      canPlaceMemory,
-      focusBounds,
-      journeyPaths,
-    }),
-    [
-      userLocation,
-      locationError,
-      requestLocation,
-      filteredMemories,
-      handleGroupSelection,
-      canPlaceMemory,
-      focusBounds,
-      journeyPaths,
-    ],
+    [user, foundMemories, placedMemories, openMemoryDetails],
   );
 
   const handleProfileMemoryClick = useCallback(
@@ -586,10 +582,183 @@ function MapPage() {
         minLng: Number(memory.longitude),
         maxLng: Number(memory.longitude),
       });
-      handleMemoryFromPanel(memory);
+      processMemorySelection(memory, { pushHistory: true });
     },
-    [handleMemoryFromPanel],
+    [processMemorySelection],
   );
+
+  const handleGroupSelection = useCallback(
+    (group) => {
+      if (!group) return;
+      if (group.memories.length > 1) {
+        setMemoryGroupSelection(group);
+        openClusterPanel(group);
+        return;
+      }
+      processMemorySelection(group.memories[0]);
+    },
+    [processMemorySelection, openClusterPanel],
+  );
+
+  const handleMemoryFromGroup = useCallback(
+    (memory) => {
+      processMemorySelection(memory, { pushHistory: true });
+    },
+    [processMemorySelection],
+  );
+
+  useEffect(() => {
+    if (rightView !== 'cluster') {
+      setMemoryGroupSelection(null);
+    }
+  }, [rightView]);
+
+  useEffect(() => {
+    if (rightView !== 'memoryDetails') {
+      setDetailMemory(null);
+      setDetailLoading(false);
+    }
+  }, [rightView]);
+
+  const renderPanel = useCallback(
+    (title, onClose, actions, content) => {
+      const showHeader = Boolean(title || onClose || actions);
+      return (
+        <div className="panel-surface">
+          {showHeader && (
+            <div className="panel-surface__header">
+              <h3 className="panel-surface__title">{title || ''}</h3>
+              <div className="panel-surface__actions">
+                {actions}
+                {onClose && (
+                  <button
+                    type="button"
+                    className="panel-surface__close"
+                    aria-label="Close panel"
+                    onClick={onClose}
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+          <div className="panel-surface__body">{content}</div>
+        </div>
+      );
+    },
+    [],
+  );
+
+  const handleOpenExternalMap = useCallback((memory) => {
+    if (!memory) return;
+    const lat = Number(memory.latitude);
+    const lng = Number(memory.longitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    const url = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }, []);
+
+  const handleNavigateFromMemory = useCallback(
+    (memory) => {
+      if (!memory) return;
+      const lat = Number(memory.latitude);
+      const lng = Number(memory.longitude);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+      setNavigationTarget(memory);
+      const originValue = userLocation
+        ? `${Number(userLocation.latitude).toFixed(5)}, ${Number(userLocation.longitude).toFixed(5)}`
+        : '';
+      setNavigationOrigin(originValue);
+      setNavigationMode('DRIVING');
+      setNavigationSummary(null);
+      setNavigationError('');
+      setNavigationRequest({
+        origin: userLocation
+          ? { lat: Number(userLocation.latitude), lng: Number(userLocation.longitude) }
+          : originValue,
+        destination: { lat, lng },
+        mode: 'DRIVING',
+      });
+      setDetailMemory(null);
+    },
+    [userLocation],
+  );
+
+  const handleStartNavigation = useCallback(() => {
+    if (!navigationTarget) return;
+    const lat = Number(navigationTarget.latitude);
+    const lng = Number(navigationTarget.longitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      setNavigationError('Destination is missing coordinates.');
+      return;
+    }
+    const originValue = navigationOrigin?.trim();
+    const originCoords = originValue
+      ? originValue
+      : userLocation
+      ? { lat: Number(userLocation.latitude), lng: Number(userLocation.longitude) }
+      : null;
+    if (!originCoords) {
+      setNavigationError('Enter a start location.');
+      return;
+    }
+    setNavigationError('');
+    setNavigationRequest({
+      origin: originCoords,
+      destination: { lat, lng },
+      mode: navigationMode,
+    });
+  }, [navigationTarget, navigationOrigin, navigationMode, userLocation]);
+
+  const handleCloseNavigation = useCallback(() => {
+    setNavigationTarget(null);
+    setNavigationRequest(null);
+    setNavigationSummary(null);
+    setNavigationError('');
+  }, []);
+
+  useEffect(() => {
+    if (!isMobile) return;
+    // ensure only one left slot layer
+    if (placingMemory) {
+      handleCloseNavigation();
+      setJourneyPanel(null);
+      setMemoryGroupSelection(null);
+      setDetailMemory(null);
+    } else if (navigationTarget) {
+      setJourneyPanel(null);
+      setMemoryGroupSelection(null);
+      setDetailMemory(null);
+    } else if (detailMemory) {
+      setJourneyPanel(null);
+      setMemoryGroupSelection(null);
+    } else if (journeyPanel && memoryGroupSelection) {
+      setMemoryGroupSelection(null);
+    }
+  }, [
+    isMobile,
+    placingMemory,
+    navigationTarget,
+    handleCloseNavigation,
+    journeyPanel,
+    memoryGroupSelection,
+    detailMemory,
+  ]);
+
 
   const openProfileFromList = useCallback(
     (handleValue, options = {}) => {
@@ -597,127 +766,131 @@ function MapPage() {
       if (!normalized) return;
       if (normalized === normalizeHandle(user?.handle || '')) {
         openProfilePanel();
+        openMemoriesPanel({ handle: normalized });
         return;
       }
       const displayName = handleValue?.name || '';
       setUserMemoriesTarget({ handle: normalized, name: displayName });
       setUserJourneysTarget({ handle: normalized, name: displayName });
       openUserProfilePanel(normalized, options);
+      openMemoriesPanel({ handle: normalized });
     },
-    [openProfilePanel, openUserProfilePanel, user?.handle],
+    [openMemoriesPanel, openProfilePanel, openUserProfilePanel, user?.handle],
   );
 
-  return (
-    <div className="map-page">
-      <div className="map-page__canvas">
-        <MapView
-          {...mapProps}
-          isPanelOpen={Boolean(activePanel)}
-          panelWidth={activePanel ? '480px' : '480px'}
-        />
-        <TopRightActions
-          filters={filters}
-          isFilterOpen={isFilterOpen}
-          onToggleFilter={() => setIsFilterOpen((prev) => !prev)}
-          onResetFilters={resetFilters}
-          onSelectOwnership={(value) => setFilters((prev) => ({ ...prev, ownership: value }))}
-          onSelectJourneyType={(value) => setFilters((prev) => ({ ...prev, journey: value }))}
-          onSelectMedia={(value) => setFilters((prev) => ({ ...prev, media: value }))}
-          onToggleVisibilityFilter={toggleVisibilityFilter}
-          onSearchChange={(value) => setFilters((prev) => ({ ...prev, search: value }))}
-        />
-      </div>
-      <div className="map-theme-toggle">
-        <Button
-          variant="ghost"
-          className="map-fab__button"
-          onClick={cycleTheme}
-          aria-label={`Theme: ${theme}`}
-          title="Change theme"
-        >
-          <svg
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 1 0 9.79 9.79Z" />
-          </svg>
-        </Button>
-      </div>
 
-      <Modal
-        isOpen={handleModalOpen}
-        onClose={user?.handle ? () => setHandleModalOpen(false) : undefined}
-        className="modal-content--narrow"
-      >
-        <h3>Pick a handle</h3>
-        <p className="memory-card__meta">
-          Handles are unique, public, and used for following. You can change it later if needed.
-        </p>
-        <form onSubmit={handleHandleSubmit} className="form-grid">
-          <Input
-            label="Handle"
-            value={handleDraft}
-            onChange={(event) => {
-              setHandleDraft(event.target.value);
-              setHandleError('');
-            }}
-            placeholder="@wanderer"
-            autoFocus
-          />
-          {handleError && <p className="error-text">{handleError}</p>}
-          <div className="form-actions">
-            <Button type="submit" variant="primary" disabled={savingHandle}>
-              {savingHandle ? 'Saving...' : 'Save handle'}
-            </Button>
+  useEffect(() => {
+    if (centerView === 'newMemory') {
+      setPlacingMemory(true);
+    } else {
+      setPlacingMemory(false);
+    }
+  }, [centerView]);
+
+  const activeMemoriesHandle = useMemo(
+    () => normalizeHandle(panels.right?.payload?.handle || normalizedUserHandle),
+    [panels.right?.payload?.handle, normalizedUserHandle],
+  );
+
+  const memoriesForHandle = useMemo(() => {
+    if (!activeMemoriesHandle) return { placed: [], found: [] };
+    const placedList = allMemories.filter(
+      (memory) => normalizeHandle(memory.ownerHandle) === activeMemoriesHandle,
+    );
+    const foundList = foundMemories.filter(
+      (memory) => normalizeHandle(memory.ownerHandle) === activeMemoriesHandle,
+    );
+    return { placed: placedList, found: foundList };
+  }, [activeMemoriesHandle, allMemories, foundMemories]);
+
+  const clusterGroup = panels.right?.payload || memoryGroupSelection;
+  const socialMode = panels.right?.payload?.mode || 'followers';
+  const socialHandle = panels.right?.payload?.handle
+    ? normalizeHandle(panels.right.payload.handle)
+    : normalizedUserHandle;
+  const showRightBack = rightHistory.length > 0;
+
+  const leftContent = useMemo(() => {
+    if (navigationTarget) {
+      return renderPanel(
+        `Navigate to ${navigationTarget.title || 'memory'}`,
+        handleCloseNavigation,
+        null,
+        (
+          <div className="navigate-panel">
+            <Input
+              label="Start"
+              placeholder="Your location or address"
+              value={navigationOrigin}
+              onChange={(event) => setNavigationOrigin(event.target.value)}
+            />
+            <Input
+              label="Destination"
+              value={`${Number(navigationTarget.latitude).toFixed(5)}, ${Number(navigationTarget.longitude).toFixed(5)}`}
+              readOnly
+              disabled
+            />
+            <div className="nav-modes">
+              {[
+                ['DRIVING', 'Drive'],
+                ['WALKING', 'Walk'],
+                ['BICYCLING', 'Bike'],
+                ['TRANSIT', 'Transit'],
+              ].map(([value, label]) => (
+                <Button
+                  key={value}
+                  variant={navigationMode === value ? 'primary' : 'ghost'}
+                  onClick={() => setNavigationMode(value)}
+                >
+                  {label}
+                </Button>
+              ))}
+            </div>
+            {navigationSummary && (
+              <div className="nav-summary">
+                <span>{navigationSummary.distanceText || ''}</span>
+                <span>-</span>
+                <span>{navigationSummary.durationText || ''}</span>
+              </div>
+            )}
+            {navigationError && <p className="error-text">{navigationError}</p>}
+            <div className="form-actions">
+              <Button variant="primary" onClick={handleStartNavigation}>
+                Navigate
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={() => handleOpenExternalMap(navigationTarget)}
+              >
+                View on Google Maps
+              </Button>
+            </div>
+            <div className="navigation-memory-preview">
+              <h4>{navigationTarget.title}</h4>
+              {navigationTarget.shortDescription && (
+                <p className="memory-details__preview">{navigationTarget.shortDescription}</p>
+              )}
+              {(navigationTarget.tags || []).length > 0 && (
+                <div className="memory-details__tags">
+                  {(navigationTarget.tags || []).map((tag) => (
+                    <span key={tag} className="chip">
+                      #{tag}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-        </form>
-      </Modal>
+        ),
+      );
+    }
 
-      <Modal
-        isOpen={placingMemory}
-        onClose={() => setPlacingMemory(false)}
-        className="modal-content--wide"
-      >
-        <h3 className='pb-4'>New Pin</h3>
-        <PlaceMemoryForm
-          coords={userLocation}
-          loading={savingMemory}
-          suggestedTags={suggestedTags}
-          onSubmit={handleCreateMemory}
-          onCancel={() => setPlacingMemory(false)}
-        />
-      </Modal>
-
-      <ProfilePanel
-        isOpen={activePanel === 'profile'}
-        onClose={closePanel}
-        placedMemories={placedMemories}
-        foundMemories={foundMemories}
-        journeys={journeys}
-        onSelectMemory={handleProfileMemoryClick}
-        onOpenProfile={openProfileFromList}
-        journeyMemories={journeyMemories}
-        journeyVisibilityMap={journeyVisibilityMap}
-        onOpenJourneyPanel={({ journeyId, journeyTitle }) =>
-          openJourneyPanel({ journeyId, journeyTitle, ownerHandle: normalizedUserHandle })
-        }
-      />
-      <SlidingPanel
-        isOpen={Boolean(journeyPanel)}
-        onClose={() => openJourneyPanel({ journeyId: null })}
-        title={journeyPanel?.journeyTitle || 'Collection'}
-        side="left"
-        width="480px"
-        showCloseButton
-      >
-        {journeyPanel ? (
+    if (journeyPanel) {
+      return renderPanel(
+        journeyPanel?.journeyTitle || 'Collection',
+        () => openJourneyPanel({ journeyId: null }),
+        null,
+        (
           <>
             <Input
               placeholder="Search memories in this collection..."
@@ -800,22 +973,396 @@ function MapPage() {
               )}
             </div>
           </>
-        ) : null}
-      </SlidingPanel>
-      <SlidingPanel
-        isOpen={Boolean(memoryGroupSelection)}
-        onClose={() => setMemoryGroupSelection(null)}
-        title="Memories in this area"
-        side="left"
-        width="480px"
-        showCloseButton
-      >
-        <OverlappingMemoryPanel
-          group={memoryGroupSelection}
-          onClose={() => setMemoryGroupSelection(null)}
-          onSelectMemory={handleMemoryFromGroup}
-        />
-      </SlidingPanel>
+        ),
+      );
+    }
+
+    if (leftView === 'profile') {
+      return renderPanel(
+        'Profile',
+        closeLeftPanel,
+        null,
+        (
+          <ProfilePanel
+            isOpen
+            onClose={closeLeftPanel}
+            placedMemories={placedMemories}
+            foundMemories={foundMemories}
+            journeys={journeys}
+            onSelectMemory={handleProfileMemoryClick}
+            onOpenProfile={openProfileFromList}
+            journeyMemories={journeyMemories}
+            journeyVisibilityMap={journeyVisibilityMap}
+            onOpenJourneyPanel={({ journeyId, journeyTitle }) =>
+              openJourneyPanel({ journeyId, journeyTitle, ownerHandle: normalizedUserHandle })
+            }
+          />
+        ),
+      );
+    }
+
+    if (leftView === 'userProfile') {
+      return renderPanel(
+        `@${userProfileHandle || 'profile'}`,
+        () => goBackFromUserProfile(),
+        (
+          <Button variant="ghost" onClick={() => goBackFromUserProfile()}>
+            Back
+          </Button>
+        ),
+        (
+          <UserProfilePanel
+            isOpen
+            handle={userProfileHandle}
+            isFollowing={userProfileActions.isFollowing}
+            onFollow={userProfileActions.onFollow}
+            onUnfollow={userProfileActions.onUnfollow}
+            onViewMemories={(profile) => {
+              if (profile?.handle) {
+                openProfileFromList(profile);
+              }
+            }}
+            onViewJourneys={(profile) => {
+              if (profile?.handle) {
+                openProfileFromList(profile);
+              }
+            }}
+            onSelectMemory={handleProfileMemoryClick}
+            placedMemories={userMemories.placed}
+            foundMemories={userMemories.found}
+            journeys={userJourneysData.journeys}
+            journeyMemories={userJourneysData.memMap}
+            journeyVisibilityMap={userJourneysData.visibilityMap}
+            onOpenProfile={openProfileFromList}
+            onOpenJourneyPanel={({ journeyId, journeyTitle }) =>
+              openJourneyPanel({ journeyId, journeyTitle, ownerHandle: userMemoriesTarget?.handle })
+            }
+            onClose={() => goBackFromUserProfile()}
+          />
+        ),
+      );
+    }
+
+    return null;
+  }, [
+    navigationTarget,
+    handleCloseNavigation,
+    navigationOrigin,
+    navigationMode,
+    navigationSummary,
+    navigationError,
+    handleStartNavigation,
+    handleOpenExternalMap,
+    journeyPanel,
+    journeyPanelSearch,
+    handleProfileMemoryClick,
+    openJourneyPanel,
+    leftView,
+    closeLeftPanel,
+    placedMemories,
+    foundMemories,
+    journeys,
+    openProfileFromList,
+    journeyMemories,
+    journeyVisibilityMap,
+    normalizedUserHandle,
+    userProfileHandle,
+    userProfileActions.isFollowing,
+    userProfileActions.onFollow,
+    userProfileActions.onUnfollow,
+    userMemories.placed,
+    userMemories.found,
+    userJourneysData.journeys,
+    userJourneysData.memMap,
+    userJourneysData.visibilityMap,
+    userMemoriesTarget?.handle,
+    goBackFromUserProfile,
+    renderPanel,
+  ]);
+
+  const centerContent = useMemo(() => {
+    if (centerView === 'newMemory') {
+      return renderPanel(
+        'New Pin',
+        () => {
+          closeCenterPanel();
+          setPlacingMemory(false);
+        },
+        null,
+        (
+          <PlaceMemoryForm
+            coords={userLocation}
+            loading={savingMemory}
+            suggestedTags={suggestedTags}
+            onSubmit={handleCreateMemory}
+            onCancel={() => {
+              closeCenterPanel();
+              setPlacingMemory(false);
+            }}
+          />
+        ),
+      );
+    }
+
+    if (centerView === 'pricing') {
+      return renderPanel(
+        'Pricing',
+        closeCenterPanel,
+        null,
+        <div className="empty-state">Pricing options will live here.</div>,
+      );
+    }
+
+    return null;
+  }, [centerView, closeCenterPanel, userLocation, savingMemory, suggestedTags, handleCreateMemory, renderPanel]);
+
+  const rightContent = useMemo(() => {
+    if (rightView === 'memoryDetails') {
+      return renderPanel(
+        detailMemory?.title || 'Memory',
+        resetRightPanel,
+        showRightBack ? (
+          <Button variant="ghost" onClick={goBackRightPanel}>
+            Back
+          </Button>
+        ) : null,
+        (
+          <>
+            {detailLoading && <p className="muted">Loading memory...</p>}
+            {!detailLoading && detailMemory && (
+              <MemoryDetailsContent
+                memory={detailMemory}
+                onGenerateQR={null}
+                onViewProfile={openProfileFromList}
+                onNavigate={handleNavigateFromMemory}
+                onOpenExternal={handleOpenExternalMap}
+              />
+            )}
+            {!detailLoading && !detailMemory && <div className="empty-state">Select a memory.</div>}
+          </>
+        ),
+      );
+    }
+
+    if (rightView === 'cluster') {
+      return renderPanel(
+        'Memories in this area',
+        () => resetRightPanel(),
+        showRightBack ? (
+          <Button variant="ghost" onClick={goBackRightPanel}>
+            Back
+          </Button>
+        ) : null,
+        (
+          <OverlappingMemoryPanel
+            group={clusterGroup}
+            onClose={() => resetRightPanel()}
+            onSelectMemory={(memory) => processMemorySelection(memory, { pushHistory: true })}
+          />
+        ),
+      );
+    }
+
+    if (rightView === 'social') {
+      return renderPanel(
+        'Social',
+        resetRightPanel,
+        null,
+        (
+          <>
+            <div className="tabs tabs--segmented" style={{ marginBottom: '0.5rem' }}>
+              <button
+                type="button"
+                className={`tab-button ${socialMode === 'followers' ? 'active' : ''}`}
+                onClick={() => openFollowersPanel(socialHandle)}
+              >
+                Followers
+              </button>
+              <button
+                type="button"
+                className={`tab-button ${socialMode === 'following' ? 'active' : ''}`}
+                onClick={() => openFollowingPanel(socialHandle)}
+              >
+                Following
+              </button>
+            </div>
+            {socialMode === 'followers' ? (
+              <ProfileFollowersTab
+                isActive
+                openProfile={openProfileFromList}
+                profileHandle={socialHandle}
+                hideSuggestions
+              />
+            ) : (
+              <ProfileFollowingTab
+                isActive
+                openProfile={openProfileFromList}
+                profileHandle={socialHandle}
+                hideSuggestions={false}
+              />
+            )}
+          </>
+        ),
+      );
+    }
+
+    if (rightView === 'memories') {
+      return renderPanel(
+        'Memories',
+        resetRightPanel,
+        showRightBack ? (
+          <Button variant="ghost" onClick={goBackRightPanel}>
+            Back
+          </Button>
+        ) : null,
+        (
+          <MemoriesPanel
+            placed={memoriesForHandle.placed}
+            found={memoriesForHandle.found}
+            onSelectMemory={(memory) => processMemorySelection(memory, { pushHistory: true })}
+            titleHandle={activeMemoriesHandle}
+          />
+        ),
+      );
+    }
+
+    return null;
+  }, [
+    rightView,
+    detailMemory,
+    resetRightPanel,
+    goBackRightPanel,
+    detailLoading,
+    openProfileFromList,
+    handleNavigateFromMemory,
+    handleOpenExternalMap,
+    clusterGroup,
+    processMemorySelection,
+    socialMode,
+    openFollowersPanel,
+    socialHandle,
+    openFollowingPanel,
+    memoriesForHandle.placed,
+    memoriesForHandle.found,
+    activeMemoriesHandle,
+  ]);  const mapProps = useMemo(
+    () => ({
+      userLocation,
+      locationError,
+      onRetryLocation: requestLocation,
+      memories: filteredMemories,
+      onSelectGroup: handleGroupSelection,
+      focusBounds,
+      journeyPaths,
+      navigationRequest,
+      onRouteComputed: (summary) => {
+        setNavigationSummary(summary);
+        if (!summary) {
+          setNavigationError('Unable to find a route.');
+        } else {
+          setNavigationError('');
+        }
+      },
+    }),
+    [
+      userLocation,
+      locationError,
+      requestLocation,
+      filteredMemories,
+      handleGroupSelection,
+      focusBounds,
+      journeyPaths,
+      navigationRequest,
+    ],
+  );
+
+  const disablePlaceMemory = !canPlaceMemory || !userLocation;
+
+  return (
+    <div className="app-shell">
+      <div className="app-shell__map">
+        <MapView {...mapProps} />
+      </div>
+
+      <div className="app-shell__overlay">
+        <div className="shell-top-nav">
+          <div className="shell-brand">mempin</div>
+          <TopRightActions
+            filters={filters}
+            isFilterOpen={isFilterOpen}
+            onToggleFilter={() => setIsFilterOpen((prev) => !prev)}
+            onResetFilters={resetFilters}
+            onSelectOwnership={(value) => setFilters((prev) => ({ ...prev, ownership: value }))}
+            onSelectJourneyType={(value) => setFilters((prev) => ({ ...prev, journey: value }))}
+            onSelectMedia={(value) => setFilters((prev) => ({ ...prev, media: value }))}
+            onToggleVisibilityFilter={toggleVisibilityFilter}
+            onSearchChange={(value) => setFilters((prev) => ({ ...prev, search: value }))}
+          />
+        </div>
+
+        <div className="shell-panels">
+          <div className={`shell-panel-slot shell-panel-slot--left ${leftContent ? 'is-active' : 'is-empty'}`}>
+            {leftContent ? <div className="shell-panel shell-panel--left">{leftContent}</div> : null}
+          </div>
+          <div className={`shell-panel-slot shell-panel-slot--center ${centerContent ? 'is-active' : 'is-empty'}`}>
+            {centerContent ? <div className="shell-panel shell-panel--center">{centerContent}</div> : null}
+          </div>
+          <div className={`shell-panel-slot shell-panel-slot--right ${rightContent ? 'is-active' : 'is-empty'}`}>
+            {rightContent ? <div className="shell-panel shell-panel--right">{rightContent}</div> : null}
+          </div>
+        </div>
+
+        <div className="shell-bottom-nav">
+          <div className="shell-bottom-left">
+            <Button
+              variant="ghost"
+              className="nav-action"
+              onClick={cycleTheme}
+              aria-label={`Theme: ${theme}`}
+              title="Change theme"
+            >
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 1 0 9.79 9.79Z" />
+              </svg>
+            </Button>
+          </div>
+          <div className="shell-bottom-right">
+            <Button
+              variant="ghost"
+              className="nav-action"
+              disabled={disablePlaceMemory}
+              onClick={() => {
+                openCreateMemoryPanel();
+                setPlacingMemory(true);
+              }}
+              aria-label="Place memory"
+              title="Place memory"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                height="22"
+                viewBox="0 -960 960 960"
+                width="22"
+                fill="currentColor"
+                aria-hidden="true"
+              >
+                <path d="M480-301q99-80 149.5-154T680-594q0-90-56-148t-144-58q-88 0-144 58t-56 148q0 65 50.5 139T480-301Zm0 101Q339-304 269.5-402T200-594q0-125 78-205.5T480-880q124 0 202 80.5T760-594q0 94-69.5 192T480-200Zm0-320q33 0 56.5-23.5T560-600q0-33-23.5-56.5T480-680q-33 0-56.5 23.5T400-600q0 33 23.5 56.5T480-520ZM200-80v-80h560v80H200Zm280-520Z" />
+              </svg>
+              <span style={{ marginLeft: '0.35rem' }}>New memory pin</span>
+            </Button>
+          </div>
+        </div>
+      </div>
 
       <UnlockDialog
         memory={selectedMemory}
@@ -823,76 +1370,47 @@ function MapPage() {
         isUnlocking={unlocking}
         error={unlockError}
         onUnlock={handleUnlock}
-        onClose={() => setSelectedMemory(null)}
-      />
-
-      <MemoryDetailsModal
-        memory={detailMemory}
-        loading={detailLoading}
-        onClose={() => setDetailMemory(null)}
-        onViewProfile={(handleValue) => openProfileFromList(handleValue)}
-      />
-
-      <UserProfilePanel
-        isOpen={activePanel === 'userProfile'}
-        handle={userProfileHandle}
-        isFollowing={userProfileActions.isFollowing}
-        onFollow={userProfileActions.onFollow}
-        onUnfollow={userProfileActions.onUnfollow}
-        onViewMemories={(profile) => {
-          if (profile?.handle) {
-            openProfileFromList(profile);
-          }
+        onClose={() => {
+          setSelectedMemory(null);
+          setSelectedMemoryPushHistory(false);
         }}
-        onViewJourneys={(profile) => {
-          if (profile?.handle) {
-            openProfileFromList(profile);
-          }
-        }}
-        onSelectMemory={handleProfileMemoryClick}
-        placedMemories={userMemories.placed}
-        foundMemories={userMemories.found}
-        journeys={userJourneysData.journeys}
-        journeyMemories={userJourneysData.memMap}
-        journeyVisibilityMap={userJourneysData.visibilityMap}
-        onOpenProfile={openProfileFromList}
-        onOpenJourneyPanel={({ journeyId, journeyTitle }) =>
-          openJourneyPanel({ journeyId, journeyTitle, ownerHandle: userMemoriesTarget?.handle })
-        }
-        onClose={() => goBackFromUserProfile()}
       />
-      <SlidingPanel
-        isOpen={activePanel === 'followersList'}
-        onClose={closePanel}
-        title="Followers"
-        width="480px"
-        showCloseButton
-      >
-        <ProfileFollowersTab
-          isActive={activePanel === 'followersList'}
-          openProfile={openProfileFromList}
-          profileHandle={normalizedUserHandle}
-          hideSuggestions
-        />
-      </SlidingPanel>
-      <SlidingPanel
-        isOpen={activePanel === 'followingList'}
-        onClose={closePanel}
-        title="Following"
-        width="480px"
-        showCloseButton
-      >
-        <ProfileFollowingTab
-          isActive={activePanel === 'followingList'}
-          openProfile={openProfileFromList}
-          profileHandle={normalizedUserHandle}
-          hideSuggestions={false}
-        />
-      </SlidingPanel>
 
-      <Modal isOpen={guestPromptOpen} onClose={() => {}}>
+      <Modal
+        isOpen={handleModalOpen}
+        onClose={user?.handle ? () => setHandleModalOpen(false) : undefined}
+        className="modal-content--narrow"
+      >
+        <h3>Pick a handle</h3>
+        <p className="memory-card__meta">
+          Handles are unique, public, and used for following. You can change it later if needed.
+        </p>
+        <form onSubmit={handleHandleSubmit} className="form-grid">
+          <Input
+            label="Handle"
+            value={handleDraft}
+            onChange={(event) => {
+              setHandleDraft(event.target.value);
+              setHandleError('');
+            }}
+            placeholder="@wanderer"
+            autoFocus
+          />
+          {handleError && <p className="error-text">{handleError}</p>}
+          <div className="form-actions">
+            <Button type="submit" variant="primary" disabled={savingHandle}>
+              {savingHandle ? 'Saving...' : 'Save handle'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal
+        isOpen={guestPromptOpen}
+        onClose={() => {}}
+      >
         <h3><strong>Join mempin</strong></h3>
-        <br></br>
+        <br />
         <p>
           Sign in to place and unlock memory pins at real-world locations. You can
           also continue as a guest to browse nearby markers.
@@ -924,3 +1442,5 @@ function MapPage() {
 }
 
 export default MapPage;
+
+

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import loadGoogleMapsApi from '../../utils/googleMaps.js';
 import Button from '../ui/Button.jsx';
 
@@ -141,6 +141,8 @@ function FlatMapView({
   hasLocation,
   focusBounds,
   journeyPaths = [],
+  navigationRequest = null,
+  onRouteComputed,
 }) {
   const mapContainerRef = useRef(null);
   const mapRef = useRef(null);
@@ -149,10 +151,15 @@ function FlatMapView({
   const memoriesLayerRef = useRef([]);
   const memoryCirclesRef = useRef([]);
   const journeysLayerRef = useRef([]);
+  const directionsLayerRef = useRef([]);
   const mapListenersRef = useRef([]);
   const [mapReady, setMapReady] = useState(false);
   const [mapError, setMapError] = useState('');
   const [zoomLevel, setZoomLevel] = useState(2);
+
+  const clearDirections = useCallback(() => {
+    clearOverlays(directionsLayerRef);
+  }, []);
 
   const groupedMemories = useMemo(() => {
     const groups = new Map();
@@ -226,6 +233,7 @@ function FlatMapView({
       clearOverlays(memoriesLayerRef);
       clearOverlays(memoryCirclesRef);
       clearOverlays(journeysLayerRef);
+      clearOverlays(directionsLayerRef);
       mapRef.current = null;
       googleRef.current = null;
       setMapReady(false);
@@ -405,6 +413,83 @@ function FlatMapView({
   }, [journeyPaths, mapReady]);
 
   useEffect(() => {
+    if (!mapReady || !googleRef.current || !mapRef.current) return;
+    clearDirections();
+    if (!navigationRequest || !navigationRequest.destination) {
+      onRouteComputed?.(null);
+      return;
+    }
+
+    const google = googleRef.current;
+    const map = mapRef.current;
+    const service = new google.maps.DirectionsService();
+
+    const origin =
+      navigationRequest.origin && typeof navigationRequest.origin === 'object'
+        ? navigationRequest.origin
+        : navigationRequest.origin || null;
+    const destination = navigationRequest.destination;
+    const mode =
+      google.maps.TravelMode[navigationRequest.mode?.toUpperCase?.() || 'DRIVING'] ||
+      google.maps.TravelMode.DRIVING;
+
+    if (!origin || !destination) {
+      onRouteComputed?.(null);
+      return;
+    }
+
+    service.route(
+      {
+        origin,
+        destination,
+        travelMode: mode,
+        provideRouteAlternatives: false,
+      },
+      (result, status) => {
+        if (status !== 'OK' || !result?.routes?.length) {
+          onRouteComputed?.(null);
+          return;
+        }
+        const route = result.routes[0];
+        const leg = route.legs?.[0];
+        const polyline = new google.maps.Polyline({
+          map,
+          path: route.overview_path,
+          strokeColor: '#2563eb',
+          strokeOpacity: 0.9,
+          strokeWeight: 7,
+          geodesic: true,
+        });
+        const startMarker = new google.maps.Marker({
+          map,
+          position: leg?.start_location || route.overview_path[0],
+          title: 'Start',
+        });
+        const endMarker = new google.maps.Marker({
+          map,
+          position: leg?.end_location || route.overview_path[route.overview_path.length - 1],
+          title: 'Destination',
+        });
+        directionsLayerRef.current = [polyline, startMarker, endMarker];
+
+        const bounds = new google.maps.LatLngBounds();
+        route.overview_path.forEach((pt) => bounds.extend(pt));
+        map.fitBounds(bounds, { top: 80, right: 80, bottom: 80, left: 80 });
+
+        onRouteComputed?.({
+          distanceText: leg?.distance?.text || '',
+          durationText: leg?.duration?.text || '',
+          mode: navigationRequest.mode || 'DRIVING',
+        });
+      },
+    );
+
+    return () => {
+      clearDirections();
+    };
+  }, [navigationRequest, mapReady, onRouteComputed, clearDirections]);
+
+  useEffect(() => {
     if (!mapReady || !mapRef.current || !focusBounds || !googleRef.current) return;
     const google = googleRef.current;
     const bounds = new google.maps.LatLngBounds(
@@ -443,12 +528,10 @@ function MapView({
   onRetryLocation,
   memories,
   onSelectGroup,
-  onRequestPlace,
-  canPlaceMemory,
   focusBounds,
   journeyPaths,
-  isPanelOpen = false,
-  panelWidth = '480px',
+  navigationRequest = null,
+  onRouteComputed,
 }) {
   const hasLocation = Boolean(userLocation);
 
@@ -463,36 +546,9 @@ function MapView({
         hasLocation={hasLocation}
         focusBounds={focusBounds}
         journeyPaths={journeyPaths}
+        navigationRequest={navigationRequest}
+        onRouteComputed={onRouteComputed}
       />
-
-      <div
-        className="map-fab"
-        style={{ right: 'var(--controls-gap)' }}
-      >
-        <span
-          className="tooltip-anchor"
-          data-tooltip={canPlaceMemory ? null : 'Sign in to place a memory'}
-        >
-          <Button
-            variant="ghost"
-            className="map-fab__button"
-            disabled={!canPlaceMemory || !hasLocation}
-            onClick={onRequestPlace}
-            aria-label="Place memory here"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              height="22"
-              viewBox="0 -960 960 960"
-              width="22"
-              fill="currentColor"
-              aria-hidden="true"
-            >
-              <path d="M480-301q99-80 149.5-154T680-594q0-90-56-148t-144-58q-88 0-144 58t-56 148q0 65 50.5 139T480-301Zm0 101Q339-304 269.5-402T200-594q0-125 78-205.5T480-880q124 0 202 80.5T760-594q0 94-69.5 192T480-200Zm0-320q33 0 56.5-23.5T560-600q0-33-23.5-56.5T480-680q-33 0-56.5 23.5T400-600q0 33 23.5 56.5T480-520ZM200-80v-80h560v80H200Zm280-520Z" />
-            </svg>
-          </Button>
-        </span>
-      </div>
     </div>
   );
 }

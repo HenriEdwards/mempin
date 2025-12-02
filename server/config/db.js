@@ -13,7 +13,7 @@ const pool = mysql.createPool({
   host: DB_HOST || 'localhost',
   port: Number(DB_PORT) || 3306,
   user: DB_USER || 'root',
-  password: DB_PASSWORD || 'justlogin',
+  password: '',
   database: DB_NAME || 'mempin',
   waitForConnections: true,
   connectionLimit: Number(DB_POOL_SIZE) || 10,

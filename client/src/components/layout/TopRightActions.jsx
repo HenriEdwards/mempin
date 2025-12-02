@@ -37,17 +37,19 @@ function TopRightActions({
   onSearchChange,
 }) {
   const {
+    panels,
+    leftView,
+    rightView,
     openProfilePanel,
-    closePanel,
-    activePanel,
+    closeLeftPanel,
     openFollowersPanel,
     openFollowingPanel,
+    resetRightPanel,
   } = useUI();
   const { logout, user } = useAuth();
   const [loggingOut, setLoggingOut] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
   const visibilitySet = filters?.visibilities || new Set(VISIBILITY_OPTIONS);
-  const actionOffset = 'var(--controls-gap)';
 
   const handleLogout = async () => {
     setLoggingOut(true);
@@ -59,11 +61,31 @@ function TopRightActions({
   };
 
   const handleProfileClick = () => {
-    if (activePanel === 'profile') {
-      closePanel();
+    if (leftView === 'profile') {
+      closeLeftPanel();
       return;
     }
     openProfilePanel();
+  };
+
+  const handleFollowersClick = () => {
+    const isOpen =
+      rightView === 'social' && panels.right?.payload?.mode === 'followers';
+    if (isOpen) {
+      resetRightPanel();
+      return;
+    }
+    openFollowersPanel(user?.handle);
+  };
+
+  const handleFollowingClick = () => {
+    const isOpen =
+      rightView === 'social' && panels.right?.payload?.mode === 'following';
+    if (isOpen) {
+      resetRightPanel();
+      return;
+    }
+    openFollowingPanel(user?.handle);
   };
 
   const avatarFallback =
@@ -75,7 +97,7 @@ function TopRightActions({
   }, [user?.avatarUrl]);
 
   return (
-    <div className="map-actions" style={{ right: actionOffset }}>
+    <div className="map-actions">
 
       <div className="map-actions__cluster">
         <div className="filter-wrapper">
@@ -190,7 +212,7 @@ function TopRightActions({
         <Button
           variant="ghost"
           aria-label="Followers"
-          onClick={openFollowersPanel}
+          onClick={handleFollowersClick}
           title="Followers"
           disabled={!user}
         >
@@ -216,7 +238,7 @@ function TopRightActions({
         <Button
           variant="ghost"
           aria-label="Following"
-          onClick={openFollowingPanel}
+          onClick={handleFollowingClick}
           title="Following"
           disabled={!user}
         >

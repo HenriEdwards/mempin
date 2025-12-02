@@ -309,3 +309,27 @@ VALUES
 (1,NULL,NULL,'Dustline',NULL,NULL,NULL,'public',-37.8136,144.9631,50), -- Melbourne
 (1,NULL,NULL,'CoastRun',NULL,NULL,NULL,'public',-27.4698,153.0251,50), -- Brisbane
 (1,NULL,NULL,'HorizonAU',NULL,NULL,NULL,'public',-31.9523,115.8613,50); -- Perth
+
+
+INSERT IGNORE INTO memory_unlocks (memory_id, user_id)
+SELECT m.id, 1
+FROM memories m
+WHERE m.id IN (
+    SELECT id FROM memories WHERE title IN (
+        'Savanna',
+        'Dune',
+        'Oasis',
+        'Drum',
+        'SunTrail',
+        'RedDust',
+        'EchoHill',
+        'WarmWind',
+        'Stone',
+        'Trail',
+        'Glint3',
+        'Whisper3',
+        'Steppe',
+        'ShadePeak',
+        'Bloom3'
+    )
+);

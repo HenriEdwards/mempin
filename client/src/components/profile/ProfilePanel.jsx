@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import SlidingPanel from '../layout/SlidingPanel.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
 import api from '../../services/api.js';
 import Button from '../ui/Button.jsx';
@@ -45,39 +44,41 @@ function ProfilePanel({
     ? 'profile-page profile-page--public'
     : 'profile-page profile-page--public profile-page--guest';
 
+  if (!isOpen) {
+    return null;
+  }
+
   return (
-    <SlidingPanel isOpen={isOpen} onClose={onClose} title="" hideHeader width="480px">
-      <div className={profilePageClassName}>
-        {!user ? (
-          <Button
-            variant="primary"
-            onClick={() => {
-              window.location.href = `${api.API_BASE_URL}/auth/google`;
-            }}
-          >
-            Sign in with Google
-          </Button>
-        ) : (
-          <>
-            <ProfileTabsContent
-              isOpen={isOpen}
-              profileHandle={profileHandle}
-              stats={stats || {}}
-              placedMemories={placedMemories}
-              foundMemories={foundMemories}
-              journeys={journeys}
-              journeyMemories={journeyMemories}
-              journeyVisibilityMap={journeyVisibilityMap}
-              onSelectMemory={onSelectMemory}
-              onOpenProfile={onOpenProfile}
-              onOpenJourneyPanel={onOpenJourneyPanel}
-            />
-            {loading && <p>Loading stats...</p>}
-            {error && <p className="error-text">{error}</p>}
-          </>
-        )}
-      </div>
-    </SlidingPanel>
+    <div className={profilePageClassName}>
+      {!user ? (
+        <Button
+          variant="primary"
+          onClick={() => {
+            window.location.href = `${api.API_BASE_URL}/auth/google`;
+          }}
+        >
+          Sign in with Google
+        </Button>
+      ) : (
+        <>
+          <ProfileTabsContent
+            isOpen={isOpen}
+            profileHandle={profileHandle}
+            stats={stats || {}}
+            placedMemories={placedMemories}
+            foundMemories={foundMemories}
+            journeys={journeys}
+            journeyMemories={journeyMemories}
+            journeyVisibilityMap={journeyVisibilityMap}
+            onSelectMemory={onSelectMemory}
+            onOpenProfile={onOpenProfile}
+            onOpenJourneyPanel={onOpenJourneyPanel}
+          />
+          {loading && <p>Loading stats...</p>}
+          {error && <p className="error-text">{error}</p>}
+        </>
+      )}
+    </div>
   );
 }
 
