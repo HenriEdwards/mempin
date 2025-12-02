@@ -10,7 +10,7 @@ function App() {
       <div className="relative z-10 flex h-full flex-col gap-4 p-4">
         {/* TOP NAV */}
         <div className="bg-green/80 rounded-lg px-4 py-2">
-          Top Nav
+          Top Nav buttons here
         </div>
 
         {/* PANELS ROW */}
@@ -28,7 +28,7 @@ panel 3
 
         {/* BOTTOM NAV */}
         <div className="bg-green/80 rounded-lg px-4 py-2">
-          Bottom Nav
+          Bottom Nav buttons here (theme changer button, map pin button)
         </div>
       </div>
     </div>

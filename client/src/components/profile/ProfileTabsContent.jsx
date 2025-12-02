@@ -173,7 +173,7 @@ function ProfileTabsContent({
         </button>
       </div>
 
-      <div className="profile-tab-content max-h-[100%]">
+      <div className="profile-tab-content ">
         {tab === 'memories' && (
           <>
             <Input
@@ -181,7 +181,7 @@ function ProfileTabsContent({
               value={memorySearch}
               onChange={(event) => setMemorySearch(event.target.value)}
             />
-            <div className="profile-memory-list max-h-[100%]">
+            <div className="profile-memory-list ">
               {visiblePlaced.map((memory) => {
                 const assets = memory.assets || [];
                 const imageCount =
