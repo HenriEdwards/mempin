@@ -106,9 +106,11 @@ function MapPage() {
   const [navigationSummary, setNavigationSummary] = useState(null);
   const [navigationError, setNavigationError] = useState('');
   const [navigationRequest, setNavigationRequest] = useState(null);
+  const [navigationFromMemory, setNavigationFromMemory] = useState(null);
   const [viewportWidth, setViewportWidth] = useState(
     typeof window !== 'undefined' ? window.innerWidth : 1440,
   );
+  const [placeMemoryDraft, setPlaceMemoryDraft] = useState(null);
   const isMobile = viewportWidth <= 1024;
   const suggestedTags = useMemo(() => {
     const tagSet = new Set();
@@ -378,6 +380,7 @@ function MapPage() {
       const response = await api.createMemory(formData);
       pushToast('Memory placed successfully');
       setPlacingMemory(false);
+      setPlaceMemoryDraft(null);
       closeCenterPanel();
       setAllMemories((prev) => {
         const filtered = prev.filter((memory) => memory.id !== response.memory.id);
@@ -546,11 +549,24 @@ function MapPage() {
     [fetchMemoryDetails, openMemoryDetailsPanel],
   );
 
+  const handleCloseNavigation = useCallback(() => {
+    setNavigationTarget(null);
+    setNavigationRequest(null);
+    setNavigationSummary(null);
+    setNavigationError('');
+    setNavigationFromMemory(null);
+  }, []);
+
   const processMemorySelection = useCallback(
     (memory, options = {}) => {
       if (!memory) return;
       setUnlockError('');
       const pushHistory = Boolean(options.pushHistory);
+
+       // If navigation panel is open for another memory, close it before opening new detail
+      if (navigationTarget && Number(memory.id) !== Number(navigationTarget.id)) {
+        handleCloseNavigation();
+      }
 
       if (!user) {
         setSelectedMemory(memory);
@@ -570,7 +586,7 @@ function MapPage() {
       setSelectedMemory(memory);
       setSelectedMemoryPushHistory(pushHistory);
     },
-    [user, foundMemories, placedMemories, openMemoryDetails],
+    [user, foundMemories, placedMemories, openMemoryDetails, navigationTarget, handleCloseNavigation],
   );
 
   const handleProfileMemoryClick = useCallback(
@@ -678,6 +694,7 @@ function MapPage() {
       const lat = Number(memory.latitude);
       const lng = Number(memory.longitude);
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+      setNavigationFromMemory(memory);
       setNavigationTarget(memory);
       const originValue = userLocation
         ? `${Number(userLocation.latitude).toFixed(5)}, ${Number(userLocation.longitude).toFixed(5)}`
@@ -693,7 +710,6 @@ function MapPage() {
         destination: { lat, lng },
         mode: 'DRIVING',
       });
-      setDetailMemory(null);
     },
     [userLocation],
   );
@@ -723,13 +739,6 @@ function MapPage() {
       mode: navigationMode,
     });
   }, [navigationTarget, navigationOrigin, navigationMode, userLocation]);
-
-  const handleCloseNavigation = useCallback(() => {
-    setNavigationTarget(null);
-    setNavigationRequest(null);
-    setNavigationSummary(null);
-    setNavigationError('');
-  }, []);
 
   useEffect(() => {
     if (!isMobile) return;
@@ -808,83 +817,17 @@ function MapPage() {
   const socialHandle = panels.right?.payload?.handle
     ? normalizeHandle(panels.right.payload.handle)
     : normalizedUserHandle;
+  const lastRightHistory = rightHistory[rightHistory.length - 1] || null;
   const showRightBack = rightHistory.length > 0;
+  const currentMemoryId = detailMemory?.id || panels.right?.payload?.memoryId || null;
+  const showMemoryBack =
+    rightView === 'memoryDetails' &&
+    lastRightHistory?.view === 'cluster' &&
+    currentMemoryId &&
+    Array.isArray(lastRightHistory?.payload?.memories) &&
+    lastRightHistory.payload.memories.some((mem) => mem?.id === currentMemoryId);
 
   const leftContent = useMemo(() => {
-    if (navigationTarget) {
-      return renderPanel(
-        `Navigate to ${navigationTarget.title || 'memory'}`,
-        handleCloseNavigation,
-        null,
-        (
-          <div className="navigate-panel">
-            <Input
-              label="Start"
-              placeholder="Your location or address"
-              value={navigationOrigin}
-              onChange={(event) => setNavigationOrigin(event.target.value)}
-            />
-            <Input
-              label="Destination"
-              value={`${Number(navigationTarget.latitude).toFixed(5)}, ${Number(navigationTarget.longitude).toFixed(5)}`}
-              readOnly
-              disabled
-            />
-            <div className="nav-modes">
-              {[
-                ['DRIVING', 'Drive'],
-                ['WALKING', 'Walk'],
-                ['BICYCLING', 'Bike'],
-                ['TRANSIT', 'Transit'],
-              ].map(([value, label]) => (
-                <Button
-                  key={value}
-                  variant={navigationMode === value ? 'primary' : 'ghost'}
-                  onClick={() => setNavigationMode(value)}
-                >
-                  {label}
-                </Button>
-              ))}
-            </div>
-            {navigationSummary && (
-              <div className="nav-summary">
-                <span>{navigationSummary.distanceText || ''}</span>
-                <span>-</span>
-                <span>{navigationSummary.durationText || ''}</span>
-              </div>
-            )}
-            {navigationError && <p className="error-text">{navigationError}</p>}
-            <div className="form-actions">
-              <Button variant="primary" onClick={handleStartNavigation}>
-                Navigate
-              </Button>
-              <Button
-                variant="ghost"
-                onClick={() => handleOpenExternalMap(navigationTarget)}
-              >
-                View on Google Maps
-              </Button>
-            </div>
-            <div className="navigation-memory-preview">
-              <h4>{navigationTarget.title}</h4>
-              {navigationTarget.shortDescription && (
-                <p className="memory-details__preview">{navigationTarget.shortDescription}</p>
-              )}
-              {(navigationTarget.tags || []).length > 0 && (
-                <div className="memory-details__tags">
-                  {(navigationTarget.tags || []).map((tag) => (
-                    <span key={tag} className="chip">
-                      #{tag}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        ),
-      );
-    }
-
     if (journeyPanel) {
       return renderPanel(
         journeyPanel?.journeyTitle || 'Collection',
@@ -1045,14 +988,6 @@ function MapPage() {
 
     return null;
   }, [
-    navigationTarget,
-    handleCloseNavigation,
-    navigationOrigin,
-    navigationMode,
-    navigationSummary,
-    navigationError,
-    handleStartNavigation,
-    handleOpenExternalMap,
     journeyPanel,
     journeyPanelSearch,
     handleProfileMemoryClick,
@@ -1094,6 +1029,8 @@ function MapPage() {
             coords={userLocation}
             loading={savingMemory}
             suggestedTags={suggestedTags}
+            initialFormState={placeMemoryDraft}
+            onPersistDraft={setPlaceMemoryDraft}
             onSubmit={handleCreateMemory}
             onCancel={() => {
               closeCenterPanel();
@@ -1114,14 +1051,108 @@ function MapPage() {
     }
 
     return null;
-  }, [centerView, closeCenterPanel, userLocation, savingMemory, suggestedTags, handleCreateMemory, renderPanel]);
+  }, [
+    centerView,
+    closeCenterPanel,
+    userLocation,
+    savingMemory,
+    suggestedTags,
+    handleCreateMemory,
+    renderPanel,
+    placeMemoryDraft,
+    setPlaceMemoryDraft,
+  ]);
 
   const rightContent = useMemo(() => {
+    if (navigationTarget) {
+      const navigationBack = () => {
+        const memoryToReopen = navigationFromMemory;
+        handleCloseNavigation();
+        if (memoryToReopen) {
+          openMemoryDetails(memoryToReopen, { pushHistory: false });
+          setNavigationFromMemory(null);
+        }
+      };
+
+      return renderPanel(
+        `Navigate to ${navigationTarget.title || 'memory'}`,
+        handleCloseNavigation,
+        navigationFromMemory ? (
+          <Button variant="ghost" onClick={navigationBack}>
+            Back
+          </Button>
+        ) : null,
+        (
+          <div className="navigate-panel">
+            <Input
+              label="Start"
+              placeholder="Your location or address"
+              value={navigationOrigin}
+              onChange={(event) => setNavigationOrigin(event.target.value)}
+            />
+            <Input
+              label="Destination"
+              value={`${Number(navigationTarget.latitude).toFixed(5)}, ${Number(navigationTarget.longitude).toFixed(5)}`}
+              readOnly
+              disabled
+            />
+            <div className="nav-modes">
+              {[
+                ['DRIVING', 'Drive'],
+                ['WALKING', 'Walk'],
+                ['BICYCLING', 'Bike'],
+                ['TRANSIT', 'Transit'],
+              ].map(([value, label]) => (
+                <Button
+                  key={value}
+                  variant={navigationMode === value ? 'primary' : 'ghost'}
+                  onClick={() => setNavigationMode(value)}
+                >
+                  {label}
+                </Button>
+              ))}
+            </div>
+            {navigationSummary && (
+              <div className="nav-summary">
+                <span>{navigationSummary.distanceText || ''}</span>
+                <span>-</span>
+                <span>{navigationSummary.durationText || ''}</span>
+              </div>
+            )}
+            {navigationError && <p className="error-text">{navigationError}</p>}
+            <div className="form-actions">
+              <Button variant="primary" onClick={handleStartNavigation}>
+                Navigate
+              </Button>
+              <Button variant="ghost" onClick={() => handleOpenExternalMap(navigationTarget)}>
+                View on Google Maps
+              </Button>
+            </div>
+            <div className="navigation-memory-preview">
+              <h4>{navigationTarget.title}</h4>
+              {navigationTarget.shortDescription && (
+                <p className="memory-details__preview">{navigationTarget.shortDescription}</p>
+              )}
+              {(navigationTarget.tags || []).length > 0 && (
+                <div className="memory-details__tags">
+                  {(navigationTarget.tags || []).map((tag) => (
+                    <span key={tag} className="chip">
+                      #{tag}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        ),
+      );
+    }
+
     if (rightView === 'memoryDetails') {
       return renderPanel(
         detailMemory?.title || 'Memory',
         resetRightPanel,
-        showRightBack ? (
+        showMemoryBack ? (
           <Button variant="ghost" onClick={goBackRightPanel}>
             Back
           </Button>
@@ -1148,11 +1179,7 @@ function MapPage() {
       return renderPanel(
         'Memories in this area',
         () => resetRightPanel(),
-        showRightBack ? (
-          <Button variant="ghost" onClick={goBackRightPanel}>
-            Back
-          </Button>
-        ) : null,
+        null,
         (
           <OverlappingMemoryPanel
             group={clusterGroup}
@@ -1245,6 +1272,19 @@ function MapPage() {
     memoriesForHandle.placed,
     memoriesForHandle.found,
     activeMemoriesHandle,
+    showRightBack,
+    showMemoryBack,
+    navigationTarget,
+    navigationOrigin,
+    navigationMode,
+    navigationSummary,
+    navigationError,
+    handleStartNavigation,
+    handleOpenExternalMap,
+    handleCloseNavigation,
+    navigationFromMemory,
+    setNavigationOrigin,
+    openMemoryDetails,
   ]);  const mapProps = useMemo(
     () => ({
       userLocation,
@@ -1342,6 +1382,11 @@ function MapPage() {
               className="nav-action"
               disabled={disablePlaceMemory}
               onClick={() => {
+                if (centerView === 'newMemory') {
+                  closeCenterPanel();
+                  setPlacingMemory(false);
+                  return;
+                }
                 openCreateMemoryPanel();
                 setPlacingMemory(true);
               }}

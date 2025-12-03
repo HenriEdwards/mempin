@@ -19,23 +19,36 @@ const EXPIRY_PRESETS = [
   { value: 365, label: '1 year' },
 ];
 
-function PlaceMemoryForm({ coords, onSubmit, onCancel, loading, suggestedTags = [] }) {
-  const [form, setForm] = useState({
-    title: '',
-    shortDescription: '',
-    body: '',
-    tags: '',
-    targetHandles: '',
-    visibility: 'public',
-    radiusM: 50,
-    journeyId: '',
-    journeyStep: 1,
-    newJourneyTitle: '',
-    newJourneyDescription: '',
-    expiryMode: 'forever', // preset | custom | forever
-    expiryPreset: EXPIRY_PRESETS[0].value,
-    customExpiry: '',
-  });
+const defaultFormState = {
+  title: '',
+  shortDescription: '',
+  body: '',
+  tags: '',
+  targetHandles: '',
+  visibility: 'public',
+  radiusM: 50,
+  journeyId: '',
+  journeyStep: 1,
+  newJourneyTitle: '',
+  newJourneyDescription: '',
+  expiryMode: 'forever', // preset | custom | forever
+  expiryPreset: EXPIRY_PRESETS[0].value,
+  customExpiry: '',
+};
+
+function PlaceMemoryForm({
+  coords,
+  onSubmit,
+  onCancel,
+  loading,
+  suggestedTags = [],
+  initialFormState = null,
+  onPersistDraft = null,
+}) {
+  const [form, setForm] = useState(() => ({
+    ...defaultFormState,
+    ...(initialFormState || {}),
+  }));
   const [journeys, setJourneys] = useState([]);
   const [images, setImages] = useState([]);
   const [imagePreviews, setImagePreviews] = useState([]);
@@ -58,8 +71,16 @@ function PlaceMemoryForm({ coords, onSubmit, onCancel, loading, suggestedTags = 
     [imagePreviews],
   );
 
+  const persistForm = (updater) => {
+    setForm((prev) => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      onPersistDraft?.(next);
+      return next;
+    });
+  };
+
   const updateField = (name, value) => {
-    setForm((prev) => ({ ...prev, [name]: value }));
+    persistForm((prev) => ({ ...prev, [name]: value }));
   };
 
   const currentTagList = () =>
@@ -77,16 +98,20 @@ function PlaceMemoryForm({ coords, onSubmit, onCancel, loading, suggestedTags = 
 
   const handleJourneyChange = (event) => {
     const value = event.target.value;
-    updateField('journeyId', value);
-    if (!value) {
-      updateField('journeyStep', 1);
-      updateField('newJourneyTitle', '');
-      updateField('newJourneyDescription', '');
-      return;
-    }
-    const journey = journeys.find((item) => String(item.id) === String(value));
-    const nextStep = (Number(journey?.stepCount) || 0) + 1;
-    updateField('journeyStep', nextStep);
+    persistForm((prev) => {
+      const base = { ...prev, journeyId: value };
+      if (!value) {
+        return {
+          ...base,
+          journeyStep: 1,
+          newJourneyTitle: '',
+          newJourneyDescription: '',
+        };
+      }
+      const journey = journeys.find((item) => String(item.id) === String(value));
+      const nextStep = (Number(journey?.stepCount) || 0) + 1;
+      return { ...base, journeyStep: nextStep };
+    });
   };
 
   const handleMediaFiles = (files = []) => {
@@ -288,23 +313,23 @@ function PlaceMemoryForm({ coords, onSubmit, onCancel, loading, suggestedTags = 
                   className={`chip chip--clickable ${active ? 'chip--active' : ''}`}
                   onClick={() => {
                     setExpiryError('');
-                    setForm((prev) => ({
-                      ...prev,
-                      expiryMode: 'preset',
-                      expiryPreset: option.value,
-                    }));
-                  }}
-                >
-                  {option.label}
-                </button>
-              );
+                persistForm((prev) => ({
+                  ...prev,
+                  expiryMode: 'preset',
+                  expiryPreset: option.value,
+                }));
+              }}
+            >
+              {option.label}
+            </button>
+          );
             })}
             <button
               type="button"
               className={`chip chip--clickable ${form.expiryMode === 'forever' ? 'chip--active' : ''}`}
               onClick={() => {
                 setExpiryError('');
-                setForm((prev) => ({
+                persistForm((prev) => ({
                   ...prev,
                   expiryMode: 'forever',
                 }));
@@ -320,7 +345,7 @@ function PlaceMemoryForm({ coords, onSubmit, onCancel, loading, suggestedTags = 
               value={form.customExpiry}
               onChange={(event) => {
                 setExpiryError('');
-                setForm((prev) => ({
+                persistForm((prev) => ({
                   ...prev,
                   customExpiry: event.target.value,
                   expiryMode: event.target.value ? 'custom' : prev.expiryMode,
@@ -362,11 +387,11 @@ function PlaceMemoryForm({ coords, onSubmit, onCancel, loading, suggestedTags = 
               type="number"
               min={1}
               value={form.journeyStep}
-              onChange={(event) =>
-                updateField('journeyStep', Math.max(1, Number(event.target.value)))
-              }
-            />
-          )}
+            onChange={(event) =>
+              updateField('journeyStep', Math.max(1, Number(event.target.value)))
+            }
+          />
+        )}
         </div>
         <div
           className="media-dropzone"

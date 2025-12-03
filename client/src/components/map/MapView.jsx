@@ -203,6 +203,9 @@ function FlatMapView({
           mapTypeControl: false,
           fullscreenControl: false,
           clickableIcons: true,
+          gestureHandling: 'greedy',
+          scrollwheel: true,
+          draggable: true,
           restriction: {
             latLngBounds: MAIN_WORLD_BOUNDS,
             strictBounds: false,
@@ -511,8 +514,10 @@ function FlatMapView({
         </div>
       )}
       {!hasLocation && !mapError && (
-        <div className="map-placeholder empty-state">
-          <p>{locationError || 'Requesting your location...'}</p>
+        <div className="map-notice">
+          <div className="map-notice__text">
+            {locationError || 'Enable location to show your position. The map is still usable without it.'}
+          </div>
           <Button variant="primary" onClick={onRetryLocation}>
             Try again
           </Button>
