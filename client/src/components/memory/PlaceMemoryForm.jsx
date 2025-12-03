@@ -34,6 +34,9 @@ const defaultFormState = {
   expiryMode: 'forever', // preset | custom | forever
   expiryPreset: EXPIRY_PRESETS[0].value,
   customExpiry: '',
+  unlockMethod: 'location', // location | passcode | followers
+  unlockPasscode: '',
+  unlockAvailableFrom: '',
 };
 
 function PlaceMemoryForm({
@@ -55,6 +58,7 @@ function PlaceMemoryForm({
   const [audio, setAudio] = useState([]);
   const [videos, setVideos] = useState([]);
   const [expiryError, setExpiryError] = useState('');
+  const [unlockError, setUnlockError] = useState('');
   const mediaInputRef = useRef(null);
 
   useEffect(() => {
@@ -147,6 +151,11 @@ function PlaceMemoryForm({
   const handleSubmit = (event) => {
     event.preventDefault();
     if (!coords) return;
+    if (form.unlockMethod === 'passcode' && form.unlockPasscode.trim().length < 4) {
+      setUnlockError('Passcode must be at least 4 characters.');
+      return;
+    }
+    setUnlockError('');
     const expiresAtISO = (() => {
       if (form.expiryMode === 'forever') return null;
       if (form.expiryMode === 'preset') {
@@ -182,6 +191,13 @@ function PlaceMemoryForm({
     payload.append('radiusM', String(form.radiusM));
     payload.append('latitude', coords.latitude);
     payload.append('longitude', coords.longitude);
+    payload.append('unlockMethod', form.unlockMethod);
+    if (form.unlockMethod === 'passcode') {
+      payload.append('unlockPasscode', form.unlockPasscode.trim());
+    }
+    if (form.unlockAvailableFrom) {
+      payload.append('unlockAvailableFrom', form.unlockAvailableFrom);
+    }
     if (expiresAtISO) {
       payload.append('expiresAt', expiresAtISO);
     }
@@ -284,6 +300,83 @@ function PlaceMemoryForm({
           ))}
         </Select>
         <div className="field">
+          <label>Unlock method</label>
+          <div className="unlock-options">
+            <label className={`unlock-option ${form.unlockMethod === 'none' ? 'active' : ''}`}>
+              <input
+                type="radio"
+                name="unlockMethod"
+                value="none"
+                checked={form.unlockMethod === 'none'}
+                onChange={() => {
+                  setUnlockError('');
+                  persistForm((prev) => ({ ...prev, unlockMethod: 'none', unlockPasscode: '' }));
+                }}
+              />
+              <span>None (instant)</span>
+            </label>
+            <label className={`unlock-option ${form.unlockMethod === 'location' ? 'active' : ''}`}>
+              <input
+                type="radio"
+                name="unlockMethod"
+                value="location"
+                checked={form.unlockMethod === 'location'}
+                onChange={() => {
+                  setUnlockError('');
+                  persistForm((prev) => ({ ...prev, unlockMethod: 'location', unlockPasscode: '' }));
+                }}
+              />
+              <span>Within radius</span>
+            </label>
+            <label className={`unlock-option ${form.unlockMethod === 'followers' ? 'active' : ''}`}>
+              <input
+                type="radio"
+                name="unlockMethod"
+                value="followers"
+                checked={form.unlockMethod === 'followers'}
+                onChange={() => {
+                  setUnlockError('');
+                  persistForm((prev) => ({ ...prev, unlockMethod: 'followers', unlockPasscode: '' }));
+                }}
+              />
+              <span>Must follow you</span>
+            </label>
+            <label className={`unlock-option ${form.unlockMethod === 'passcode' ? 'active' : ''}`}>
+              <input
+                type="radio"
+                name="unlockMethod"
+                value="passcode"
+                checked={form.unlockMethod === 'passcode'}
+                onChange={() => {
+                  setUnlockError('');
+                  persistForm((prev) => ({ ...prev, unlockMethod: 'passcode' }));
+                }}
+              />
+              <span>Passcode</span>
+            </label>
+          </div>
+          {form.unlockMethod === 'passcode' && (
+            <Input
+              label="Unlock passcode"
+              value={form.unlockPasscode}
+              onChange={(event) => {
+                setUnlockError('');
+                updateField('unlockPasscode', event.target.value);
+              }}
+              placeholder="Enter passcode"
+            />
+          )}
+          {unlockError && <p className="input-error" style={{ marginTop: '0.35rem' }}>{unlockError}</p>}
+        </div>
+        <div className="field">
+          <label>Unlock available from (optional)</label>
+          <Input
+            type="datetime-local"
+            value={form.unlockAvailableFrom}
+            onChange={(event) => updateField('unlockAvailableFrom', event.target.value)}
+          />
+        </div>
+        <div className="field">
           <label title="How close someone must be to unlock">Radius</label>
           <input
             className="slider"
@@ -292,6 +385,7 @@ function PlaceMemoryForm({
             max={200}
             step={5}
             value={form.radiusM}
+            disabled={form.unlockMethod !== 'location'}
             onChange={(event) => updateField('radiusM', Number(event.target.value))}
           />
           <div className="slider-marks">

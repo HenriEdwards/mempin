@@ -68,6 +68,7 @@ function MapPage() {
   const [allMemories, setAllMemories] = useState([]);
   const [placedMemories, setPlacedMemories] = useState([]);
   const [foundMemories, setFoundMemories] = useState([]);
+  const [savedMemories, setSavedMemories] = useState([]);
   const [journeys, setJourneys] = useState([]);
   const [journeyMemories, setJourneyMemories] = useState({});
   const [followingIds, setFollowingIds] = useState(new Set());
@@ -77,6 +78,7 @@ function MapPage() {
   const [selectedMemoryPushHistory, setSelectedMemoryPushHistory] = useState(false);
   const [unlocking, setUnlocking] = useState(false);
   const [unlockError, setUnlockError] = useState('');
+  const [unlockPasscode, setUnlockPasscode] = useState('');
   const [memoryGroupSelection, setMemoryGroupSelection] = useState(null);
   const [guestPromptOpen, setGuestPromptOpen] = useState(false);
   const [toast, pushToast] = useToast();
@@ -318,15 +320,18 @@ function MapPage() {
     if (!user) {
       setPlacedMemories([]);
       setFoundMemories([]);
+      setSavedMemories([]);
       return;
     }
     try {
-      const [placedResponse, foundResponse] = await Promise.all([
+      const [placedResponse, foundResponse, savedResponse] = await Promise.all([
         api.getPlacedMemories(),
         api.getUnlockedMemories(),
+        api.getSavedMemories(),
       ]);
       setPlacedMemories(placedResponse.memories || []);
       setFoundMemories(foundResponse.memories || []);
+      setSavedMemories(savedResponse.memories || []);
     } catch (error) {
       pushToast(error.message, 'error');
     }
@@ -483,20 +488,30 @@ function MapPage() {
     [pushToast],
   );
 
-  const handleUnlock = async () => {
-    if (!selectedMemory || !userLocation) {
+  const handleUnlock = async (passcodeInput = '') => {
+    if (!selectedMemory) {
+      return;
+    }
+    if (selectedMemory.unlockRequiresLocation && !userLocation) {
+      setUnlockError('Location required to unlock this memory.');
       return;
     }
     setUnlocking(true);
     setUnlockError('');
     try {
-      const response = await api.unlockMemory(selectedMemory.id, {
-        latitude: userLocation.latitude,
-        longitude: userLocation.longitude,
-      });
+      const payload = {};
+      if (userLocation) {
+        payload.latitude = userLocation.latitude;
+        payload.longitude = userLocation.longitude;
+      }
+      if (selectedMemory.unlockRequiresPasscode) {
+        payload.passcode = passcodeInput || unlockPasscode;
+      }
+      const response = await api.unlockMemory(selectedMemory.id, payload);
       setSelectedMemory(null);
       const unlockedMemory = response.memory;
       setDetailMemory(unlockedMemory);
+      setUnlockPasscode('');
       openMemoryDetailsPanel(
         { memoryId: unlockedMemory.id },
         { pushHistory: selectedMemoryPushHistory },
@@ -511,6 +526,29 @@ function MapPage() {
       setUnlocking(false);
     }
   };
+
+  const handleToggleSave = useCallback(
+    async (memory, shouldSave) => {
+      if (!memory?.id) return;
+      try {
+        if (shouldSave) {
+          await api.saveMemory(memory.id);
+          setSavedMemories((prev) => {
+            const exists = prev.some((item) => item.id === memory.id);
+            if (exists) return prev;
+            return [...prev, { ...memory, saved: true }];
+          });
+        } else {
+          await api.removeSavedMemory(memory.id);
+          setSavedMemories((prev) => prev.filter((item) => item.id !== memory.id));
+        }
+        setDetailMemory((prev) => (prev?.id === memory.id ? { ...prev, saved: shouldSave } : prev));
+      } catch (error) {
+        pushToast(error.message || 'Unable to update saved state', 'error');
+      }
+    },
+    [pushToast],
+  );
 
   const openJourneyPanel = useCallback(
     ({ journeyId, journeyTitle, ownerHandle }) => {
@@ -566,6 +604,25 @@ function MapPage() {
        // If navigation panel is open for another memory, close it before opening new detail
       if (navigationTarget && Number(memory.id) !== Number(navigationTarget.id)) {
         handleCloseNavigation();
+      }
+
+      const isUnlockFree =
+        !memory.unlockRequiresLocation &&
+        !memory.unlockRequiresFollowers &&
+        !memory.unlockRequiresPasscode;
+      const isTimeLocked =
+        memory.unlockAvailableFrom &&
+        new Date(memory.unlockAvailableFrom).getTime() > Date.now();
+
+      if (isTimeLocked) {
+        setSelectedMemory(memory);
+        setSelectedMemoryPushHistory(pushHistory);
+        return;
+      }
+
+      if (isUnlockFree) {
+        openMemoryDetails(memory, { pushHistory });
+        return;
       }
 
       if (!user) {
@@ -635,6 +692,11 @@ function MapPage() {
       setDetailLoading(false);
     }
   }, [rightView]);
+
+  useEffect(() => {
+    setUnlockPasscode('');
+    setUnlockError('');
+  }, [selectedMemory]);
 
   const renderPanel = useCallback(
     (title, onClose, actions, content) => {
@@ -775,16 +837,14 @@ function MapPage() {
       if (!normalized) return;
       if (normalized === normalizeHandle(user?.handle || '')) {
         openProfilePanel();
-        openMemoriesPanel({ handle: normalized });
         return;
       }
       const displayName = handleValue?.name || '';
       setUserMemoriesTarget({ handle: normalized, name: displayName });
       setUserJourneysTarget({ handle: normalized, name: displayName });
       openUserProfilePanel(normalized, options);
-      openMemoriesPanel({ handle: normalized });
     },
-    [openMemoriesPanel, openProfilePanel, openUserProfilePanel, user?.handle],
+    [openProfilePanel, openUserProfilePanel, user?.handle],
   );
 
 
@@ -931,6 +991,7 @@ function MapPage() {
             onClose={closeLeftPanel}
             placedMemories={placedMemories}
             foundMemories={foundMemories}
+            savedMemories={savedMemories}
             journeys={journeys}
             onSelectMemory={handleProfileMemoryClick}
             onOpenProfile={openProfileFromList}
@@ -996,6 +1057,7 @@ function MapPage() {
     closeLeftPanel,
     placedMemories,
     foundMemories,
+    savedMemories,
     journeys,
     openProfileFromList,
     journeyMemories,
@@ -1167,6 +1229,7 @@ function MapPage() {
                 onViewProfile={openProfileFromList}
                 onNavigate={handleNavigateFromMemory}
                 onOpenExternal={handleOpenExternalMap}
+                onToggleSave={(mem, next) => handleToggleSave(mem, next)}
               />
             )}
             {!detailLoading && !detailMemory && <div className="empty-state">Select a memory.</div>}
@@ -1265,6 +1328,7 @@ function MapPage() {
     handleOpenExternalMap,
     clusterGroup,
     processMemorySelection,
+    handleToggleSave,
     socialMode,
     openFollowersPanel,
     socialHandle,
@@ -1415,6 +1479,8 @@ function MapPage() {
         isUnlocking={unlocking}
         error={unlockError}
         onUnlock={handleUnlock}
+        passcode={unlockPasscode}
+        onPasscodeChange={setUnlockPasscode}
         onClose={() => {
           setSelectedMemory(null);
           setSelectedMemoryPushHistory(false);

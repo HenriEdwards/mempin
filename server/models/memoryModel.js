@@ -1,7 +1,8 @@
 const db = require('../db/queries');
 const { calculateDistanceMeters, getBoundingBox } = require('../utils/geo');
 
-function mapMemory(row = {}) {
+function mapMemory(row = {}, options = {}) {
+  const includeSecret = options && options.includeSecret;
   const tags = row.tags
     ? row.tags
         .split(',')
@@ -14,11 +15,11 @@ function mapMemory(row = {}) {
     id: row.id,
     ownerId: row.owner_id,
     journeyId: row.journey_id,
-    journeyStep: row.journey_step,
-    journeyStepCount: row.journey_step_count ? Number(row.journey_step_count) : null,
-    title: row.title,
-    shortDescription: row.short_description,
-    body: row.body,
+  journeyStep: row.journey_step,
+  journeyStepCount: row.journey_step_count ? Number(row.journey_step_count) : null,
+  title: row.title,
+  shortDescription: row.short_description,
+  body: row.body,
     ownerHandle: row.owner_handle || null,
     ownerName: row.owner_name || null,
     ownerAvatarUrl: row.owner_avatar_url || null,
@@ -26,18 +27,29 @@ function mapMemory(row = {}) {
     visibility: row.visibility,
     latitude: typeof row.latitude === 'number' ? row.latitude : Number(row.latitude),
     longitude: typeof row.longitude === 'number' ? row.longitude : Number(row.longitude),
-    radiusM: row.radius_m,
-    isActive: row.is_active === 1,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-    timesFound: row.times_found || 0,
-    expiresAt: row.expires_at || null,
-    hasMedia: row.has_media ? row.has_media > 0 : false,
-    imageCount,
+  radiusM: row.radius_m,
+  isActive: row.is_active === 1,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+  timesFound: row.times_found || 0,
+  expiresAt: row.expires_at || null,
+  unlockRequiresLocation: row.unlock_requires_location === 1,
+  unlockRequiresFollowers: row.unlock_requires_followers === 1,
+  unlockRequiresPasscode: row.unlock_requires_passcode === 1,
+  unlockAvailableFrom: row.unlock_available_from || null,
+  hasMedia: row.has_media ? row.has_media > 0 : false,
+  imageCount,
   audioCount,
   videoCount: Number(row.video_count ?? row.videoCount ?? 0) || 0,
   lastUnlockedAt: row.last_unlocked_at || null,
+  savedAt: row.saved_at || null,
   };
+
+  if (includeSecret) {
+    formatted.unlockPasscodeHash = row.unlock_passcode_hash || null;
+  }
+
+  return formatted;
 }
 
 async function createMemory({
@@ -53,11 +65,17 @@ async function createMemory({
   longitude,
   radiusM,
   expiresAt,
+  unlockRequiresLocation = true,
+  unlockRequiresFollowers = false,
+  unlockRequiresPasscode = false,
+  unlockPasscodeHash = null,
+  unlockAvailableFrom = null,
 }) {
   const result = await db.query(
     `INSERT INTO memories
-    (owner_id, journey_id, journey_step, title, short_description, body, tags, visibility, latitude, longitude, radius_m, expires_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    (owner_id, journey_id, journey_step, title, short_description, body, tags, visibility, latitude, longitude, radius_m, expires_at,
+      unlock_requires_location, unlock_requires_followers, unlock_requires_passcode, unlock_passcode_hash, unlock_available_from)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       ownerId,
       journeyId || null,
@@ -71,13 +89,19 @@ async function createMemory({
       longitude,
       radiusM,
       expiresAt || null,
+      unlockRequiresLocation ? 1 : 0,
+      unlockRequiresFollowers ? 1 : 0,
+      unlockRequiresPasscode ? 1 : 0,
+      unlockPasscodeHash || null,
+      unlockAvailableFrom || null,
     ],
   );
 
   return getMemoryById(result.insertId);
 }
 
-async function getMemoryById(id) {
+async function getMemoryById(id, options = {}) {
+  const includeSecret = options.includeSecret || false;
   const rows = await db.query(
     `SELECT
       m.*,
@@ -123,7 +147,7 @@ async function getMemoryById(id) {
     [id],
   );
 
-  return mapMemory(rows[0]);
+  return mapMemory(rows[0], { includeSecret });
 }
 
 async function getPlacedMemories(ownerId) {
@@ -425,4 +449,5 @@ module.exports = {
   updateMemoryVisibility,
   getMemoriesByJourney,
   updateMemoriesVisibilityForJourney,
+  mapMemory,
 };

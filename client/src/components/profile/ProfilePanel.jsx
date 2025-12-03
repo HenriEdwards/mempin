@@ -9,6 +9,7 @@ function ProfilePanel({
   onClose,
   placedMemories = [],
   foundMemories = [],
+  savedMemories = [],
   journeys = [],
   onSelectMemory,
   onOpenProfile,
@@ -67,6 +68,7 @@ function ProfilePanel({
             stats={stats || {}}
             placedMemories={placedMemories}
             foundMemories={foundMemories}
+            savedMemories={savedMemories}
             journeys={journeys}
             journeyMemories={journeyMemories}
             journeyVisibilityMap={journeyVisibilityMap}
