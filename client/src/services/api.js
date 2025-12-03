@@ -31,6 +31,7 @@ const api = {
     ),
   getPlacedMemories: () => request('/api/memories/placed'),
   getUnlockedMemories: () => request('/api/memories/unlocked'),
+  getSavedMemories: () => request('/api/memories/saved'),
   updateMemoryVisibility: (id, visibility) =>
     request(`/api/memories/${id}/visibility`, {
       method: 'PATCH',
@@ -50,11 +51,19 @@ const api = {
       }
       return payload;
     }),
-  unlockMemory: (memoryId, coords) =>
+  unlockMemory: (memoryId, payload) =>
     request(`/api/memories/${memoryId}/unlock`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(coords),
+      body: JSON.stringify(payload || {}),
+    }),
+  saveMemory: (id) =>
+    request(`/api/memories/${id}/save`, {
+      method: 'POST',
+    }),
+  removeSavedMemory: (id) =>
+    request(`/api/memories/${id}/save`, {
+      method: 'DELETE',
     }),
   getFollowers: () => request('/api/followers'),
   addFollower: (handle) =>

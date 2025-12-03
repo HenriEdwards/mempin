@@ -10,6 +10,18 @@ DROP TABLE IF EXISTS users;
 
 SET FOREIGN_KEY_CHECKS = 1;
 
+SET FOREIGN_KEY_CHECKS = 0;
+
+DROP TABLE IF EXISTS memory_targets;
+DROP TABLE IF EXISTS journeys;
+DROP TABLE IF EXISTS user_followers;
+DROP TABLE IF EXISTS memory_unlocks;
+DROP TABLE IF EXISTS memory_assets;
+DROP TABLE IF EXISTS memories;
+DROP TABLE IF EXISTS users;
+
+SET FOREIGN_KEY_CHECKS = 1;
+
 -- USERS: Registered users via Google OAuth
 CREATE TABLE users (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -65,7 +77,14 @@ CREATE TABLE memories (
   -- CORE LOCATION (keep using this for map rendering)
   latitude  DECIMAL(9,6) NOT NULL,
   longitude DECIMAL(9,6) NOT NULL,
-  radius_m INT NOT NULL DEFAULT 50,  -- distance (in meters) required to unlock
+  radius_m INT NOT NULL DEFAULT 50,  -- distance (in meters) required for location checks
+
+  -- UNLOCK RULES
+  unlock_requires_location TINYINT(1) NOT NULL DEFAULT 1,  -- location radius gate
+  unlock_requires_followers TINYINT(1) NOT NULL DEFAULT 0, -- must follow owner
+  unlock_requires_passcode TINYINT(1) NOT NULL DEFAULT 0,  -- passcode gate
+  unlock_passcode_hash VARCHAR(255) DEFAULT NULL,          -- store hashed passcode
+  unlock_available_from DATETIME DEFAULT NULL,             -- time-lock start (NULL = no time lock)
 
   -- NEW: GOOGLE / HUMAN-FRIENDLY LOCATION METADATA
   google_place_id VARCHAR(128) DEFAULT NULL,
@@ -79,7 +98,7 @@ CREATE TABLE memories (
   is_active TINYINT(1) NOT NULL DEFAULT 1,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  expires_at DATETIME NULL,   -- NULL = forever, otherwise exact expiry timestamp,
+  expires_at DATETIME NULL,   -- NULL = forever, otherwise exact expiry timestamp
 
   PRIMARY KEY (id),
   KEY idx_memories_owner (owner_id),
@@ -87,6 +106,7 @@ CREATE TABLE memories (
   KEY idx_memories_journey (journey_id, journey_step),
   KEY idx_memories_country (country_code),
   KEY idx_memories_place_id (google_place_id),
+  KEY idx_memories_unlock_time (unlock_available_from),
 
   CONSTRAINT fk_memories_owner
     FOREIGN KEY (owner_id) REFERENCES users(id)
@@ -163,6 +183,7 @@ CREATE TABLE memory_targets (
     FOREIGN KEY (target_user_id) REFERENCES users(id)
     ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 
 
 INSERT INTO memories 

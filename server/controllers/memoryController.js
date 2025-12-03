@@ -4,17 +4,24 @@ const {
   persistMemoryAssets,
   getAssetPublicUrl,
 } = require('../utils/storage');
+const crypto = require('crypto');
 const { calculateDistanceMeters } = require('../utils/geo');
 const memoryModel = require('../models/memoryModel');
 const memoryAssetModel = require('../models/memoryAssetModel');
 const memoryUnlockModel = require('../models/memoryUnlockModel');
 const memoryTargetModel = require('../models/memoryTargetModel');
+const memorySaveModel = require('../models/memorySaveModel');
 const friendsModel = require('../models/friendsModel');
 const journeyModel = require('../models/journeyModel');
 const userModel = require('../models/userModel');
 const { normalizeHandle, isValidHandle } = require('../utils/handles');
+const { mapMemory } = require('../models/memoryModel');
 
 const allowedVisibility = new Set(['public', 'private', 'unlisted', 'followers']);
+
+function hashPasscode(passcode) {
+  return crypto.createHash('sha256').update(String(passcode)).digest('hex');
+}
 
 function isMemoryExpired(memory) {
   if (!memory || !memory.expiresAt) return false;
@@ -160,8 +167,41 @@ const createMemory = [
       req.body.expiresAt && String(req.body.expiresAt).trim()
         ? new Date(req.body.expiresAt)
         : null;
+    const unlockMethod = String(req.body.unlockMethod || 'location').toLowerCase();
+    let unlockRequiresLocation = unlockMethod === 'location';
+    let unlockRequiresFollowers = unlockMethod === 'followers';
+    let unlockRequiresPasscode = unlockMethod === 'passcode';
+    const unlockPasscodeInput = req.body.unlockPasscode
+      ? String(req.body.unlockPasscode).trim()
+      : '';
+    const unlockAvailableFrom =
+      req.body.unlockAvailableFrom && String(req.body.unlockAvailableFrom).trim()
+        ? new Date(req.body.unlockAvailableFrom)
+        : null;
     let journeyId = parseNumber(req.body.journeyId);
     let journeyStep = parseNumber(req.body.journeyStep);
+
+    if (unlockAvailableFrom && Number.isNaN(unlockAvailableFrom.getTime())) {
+      return res.status(400).json({ error: 'Unlock available from must be a valid date/time' });
+    }
+
+    let unlockPasscodeHash = null;
+    if (unlockRequiresPasscode) {
+      if (!unlockPasscodeInput || unlockPasscodeInput.length < 4) {
+        return res
+          .status(400)
+          .json({ error: 'Passcode must be at least 4 characters when passcode unlock is selected' });
+      }
+      unlockPasscodeHash = hashPasscode(unlockPasscodeInput);
+    }
+
+    // allow "none" (no unlock gate); only fall back to location if method is unknown
+    if (
+      !['none', 'location', 'followers', 'passcode'].includes(unlockMethod) ||
+      (!unlockRequiresLocation && !unlockRequiresFollowers && !unlockRequiresPasscode && unlockMethod !== 'none')
+    ) {
+      unlockRequiresLocation = true;
+    }
 
     if (!title) {
       return res.status(400).json({ error: 'Title is required' });
@@ -205,6 +245,11 @@ const createMemory = [
       longitude,
       radiusM,
       expiresAt,
+      unlockRequiresLocation,
+      unlockRequiresFollowers,
+      unlockRequiresPasscode,
+      unlockPasscodeHash,
+      unlockAvailableFrom,
     });
 
     if (targetHandles.length) {
@@ -308,11 +353,8 @@ const unlockMemory = asyncHandler(async (req, res) => {
 
   const latitude = parseNumber(req.body.latitude);
   const longitude = parseNumber(req.body.longitude);
-  if (latitude === null || longitude === null) {
-    return res.status(400).json({ error: 'Valid coordinates are required' });
-  }
 
-  const memory = await memoryModel.getMemoryById(memoryId);
+  const memory = await memoryModel.getMemoryById(memoryId, { includeSecret: true });
   if (!memory || !memory.isActive) {
     return res.status(404).json({ error: 'Memory not found' });
   }
@@ -330,22 +372,52 @@ const unlockMemory = asyncHandler(async (req, res) => {
     return res.status(403).json({ error: 'This memory is private' });
   }
 
-  if (memory.visibility === 'followers' && memory.ownerId !== req.user.id) {
+  const needsFollowerCheck =
+    memory.ownerId !== req.user.id &&
+    (memory.visibility === 'followers' || memory.unlockRequiresFollowers);
+  if (needsFollowerCheck) {
     const isFollower = await friendsModel.isFollowing(req.user.id, memory.ownerId);
     if (!isFollower) {
       return res.status(403).json({ error: 'Only followers can unlock this memory' });
     }
   }
 
-  const distance = calculateDistanceMeters(
-    latitude,
-    longitude,
-    memory.latitude,
-    memory.longitude,
-  );
+  if (
+    memory.unlockAvailableFrom &&
+    memory.ownerId !== req.user.id &&
+    new Date(memory.unlockAvailableFrom).getTime() > Date.now()
+  ) {
+    return res
+      .status(403)
+      .json({ error: 'This memory is not available to unlock yet' });
+  }
 
-  if (distance > memory.radiusM) {
-    return res.status(403).json({ error: 'Too far to unlock' });
+  const requiresLocation = memory.unlockRequiresLocation !== false;
+  if (requiresLocation) {
+    if (latitude === null || longitude === null) {
+      return res.status(400).json({ error: 'Valid coordinates are required' });
+    }
+    const distance = calculateDistanceMeters(
+      latitude,
+      longitude,
+      memory.latitude,
+      memory.longitude,
+    );
+
+    if (distance > memory.radiusM) {
+      return res.status(403).json({ error: 'Too far to unlock' });
+    }
+  }
+
+  if (memory.unlockRequiresPasscode) {
+    const passcodeInput = req.body.passcode || req.body.unlockPasscode || '';
+    if (!passcodeInput) {
+      return res.status(403).json({ error: 'Passcode required to unlock' });
+    }
+    const hashedInput = hashPasscode(passcodeInput);
+    if (!memory.unlockPasscodeHash || hashedInput !== memory.unlockPasscodeHash) {
+      return res.status(403).json({ error: 'Invalid passcode' });
+    }
   }
 
   if (memory.journeyId && memory.journeyStep > 1) {
@@ -369,8 +441,8 @@ const unlockMemory = asyncHandler(async (req, res) => {
   const unlockRecord = await memoryUnlockModel.upsertUnlock({
     memoryId,
     userId: req.user.id,
-    latitude,
-    longitude,
+    latitude: requiresLocation ? latitude : null,
+    longitude: requiresLocation ? longitude : null,
   });
 
   const updatedMemory = await memoryModel.getMemoryById(memoryId);
@@ -398,22 +470,88 @@ const getMemoryDetails = asyncHandler(async (req, res) => {
     return res.status(410).json({ error: 'Memory has expired' });
   }
 
+  const isUnlockedFree =
+    !memory.unlockRequiresLocation &&
+    !memory.unlockRequiresFollowers &&
+    !memory.unlockRequiresPasscode;
+  const hasTimeLock =
+    memory.unlockAvailableFrom &&
+    new Date(memory.unlockAvailableFrom).getTime() > Date.now();
+
   let unlockedAt = memory.createdAt;
   if (memory.ownerId !== req.user.id) {
-    const unlockRecord = await memoryUnlockModel.getUnlockRecord(memoryId, req.user.id);
-    if (!unlockRecord) {
+    if (hasTimeLock) {
       return res.status(403).json({ error: 'Memory not unlocked yet' });
     }
-    unlockedAt = unlockRecord.unlockedAt;
+    if (!isUnlockedFree) {
+      const unlockRecord = await memoryUnlockModel.getUnlockRecord(memoryId, req.user.id);
+      if (!unlockRecord) {
+        return res.status(403).json({ error: 'Memory not unlocked yet' });
+      }
+      unlockedAt = unlockRecord.unlockedAt;
+    }
   }
 
   const memoryWithAssets = await attachAssetsToMemory(memory);
+  const isSaved = await memorySaveModel.isSaved(memoryId, req.user.id);
   return res.json({
     memory: {
       ...memoryWithAssets,
+      saved: isSaved,
       unlockedAt,
     },
   });
+});
+
+const saveMemory = asyncHandler(async (req, res) => {
+  const memoryId = Number(req.params.id);
+  if (!memoryId) {
+    return res.status(400).json({ error: 'Invalid memory id' });
+  }
+  const memory = await memoryModel.getMemoryById(memoryId);
+  if (!memory || !memory.isActive) {
+    return res.status(404).json({ error: 'Memory not found' });
+  }
+  if (isMemoryExpired(memory)) {
+    return res.status(410).json({ error: 'Memory has expired' });
+  }
+  const targetUserIds = await memoryTargetModel.getTargetsForMemory(memoryId);
+  const followerOwnerSet = await friendsModel.getFollowingOwnerSet([memory.ownerId], req.user.id);
+  if (!canAccessMemory(memory, req.user.id, followerOwnerSet, { [memory.id]: targetUserIds })) {
+    return res.status(403).json({ error: 'You are not allowed to save this memory' });
+  }
+  await memorySaveModel.addSave(memoryId, req.user.id);
+  return res.json({ saved: true });
+});
+
+const removeSavedMemory = asyncHandler(async (req, res) => {
+  const memoryId = Number(req.params.id);
+  if (!memoryId) {
+    return res.status(400).json({ error: 'Invalid memory id' });
+  }
+  await memorySaveModel.removeSave(memoryId, req.user.id);
+  return res.json({ saved: false });
+});
+
+const getSavedMemories = asyncHandler(async (req, res) => {
+  const rows = await memorySaveModel.getSavedMemories(req.user.id);
+  if (!rows.length) {
+    return res.json({ memories: [] });
+  }
+  const mapped = rows.map((row) => mapMemory(row));
+  const memoryIds = mapped.map((m) => m.id);
+  const targetMap = await memoryTargetModel.getTargetsForMemories(memoryIds);
+  const ownerIds = [...new Set(mapped.map((m) => m.ownerId))];
+  const followerOwnerSet = await friendsModel.getFollowingOwnerSet(ownerIds, req.user.id);
+  const filtered = mapped.filter(
+    (memory) =>
+      !isMemoryExpired(memory) &&
+      canAccessMemory(memory, req.user.id, followerOwnerSet, targetMap),
+  );
+
+  const withAssets = await Promise.all(filtered.map((mem) => attachAssetsToMemory(mem)));
+  const enriched = withAssets.map((mem) => ({ ...mem, saved: true }));
+  return res.json({ memories: enriched });
 });
 
 module.exports = {
@@ -425,4 +563,7 @@ module.exports = {
   unlockMemory,
   getMemoryDetails,
   updateMemoryVisibility,
+  saveMemory,
+  removeSavedMemory,
+  getSavedMemories,
 };

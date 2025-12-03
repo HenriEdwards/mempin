@@ -21,7 +21,14 @@ function formatExpiry(value) {
   return date.getTime() <= Date.now() ? `Expired · ${formatted}` : formatted;
 }
 
-function MemoryDetailsContent({ memory, onGenerateQR, onViewProfile, onNavigate, onOpenExternal }) {
+function MemoryDetailsContent({
+  memory,
+  onGenerateQR,
+  onViewProfile,
+  onNavigate,
+  onOpenExternal,
+  onToggleSave,
+}) {
   if (!memory) return null;
   const [lightboxIndex, setLightboxIndex] = useState(null);
   const imageAssets = useMemo(
@@ -84,8 +91,18 @@ function MemoryDetailsContent({ memory, onGenerateQR, onViewProfile, onNavigate,
             Generate QR code
           </Button>
         )}
-        {(onOpenExternal || onNavigate) && (
+        {(onOpenExternal || onNavigate || onToggleSave) && (
           <div className="memory-details__actions">
+            {onToggleSave && (
+              <label className="save-memory-toggle">
+                <input
+                  type="checkbox"
+                  checked={Boolean(memory.saved)}
+                  onChange={(event) => onToggleSave(memory, event.target.checked)}
+                />
+                <span>{memory.saved ? 'Memory saved' : 'Save memory'}</span>
+              </label>
+            )}
             {onOpenExternal && (
               <Button
                 variant="ghost"
