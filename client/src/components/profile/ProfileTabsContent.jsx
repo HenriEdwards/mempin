@@ -15,7 +15,6 @@ function ProfileTabsContent({
   stats = {},
   isOpen = false,
   placedMemories = [],
-  foundMemories = [],
   savedMemories = [],
   journeys = [],
   journeyMemories = {},
@@ -29,7 +28,6 @@ function ProfileTabsContent({
   const [tab, setTab] = useState('memories');
   const [selectedJourneyId, setSelectedJourneyId] = useState(null);
   const [memorySearch, setMemorySearch] = useState('');
-  const [unlockedSearch, setUnlockedSearch] = useState('');
   const [savedSearch, setSavedSearch] = useState('');
   const [journeySearch, setJourneySearch] = useState('');
 
@@ -38,7 +36,6 @@ function ProfileTabsContent({
       setTab('memories');
       setSelectedJourneyId(null);
       setMemorySearch('');
-      setUnlockedSearch('');
       setSavedSearch('');
       setJourneySearch('');
     }
@@ -56,15 +53,6 @@ function ProfileTabsContent({
       `${m.title} ${m.shortDescription || ''} ${m.body || ''}`.toLowerCase().includes(term),
     );
   }, [placedMemories, normalizedHandle, memorySearch]);
-
-  const visibleUnlocked = useMemo(() => {
-    const base = foundMemories;
-    if (!unlockedSearch.trim()) return base;
-    const term = unlockedSearch.toLowerCase();
-    return base.filter((m) =>
-      `${m.title} ${m.shortDescription || ''} ${m.body || ''}`.toLowerCase().includes(term),
-    );
-  }, [foundMemories, unlockedSearch]);
 
   const visibleSaved = useMemo(() => {
     const base = savedMemories;
@@ -182,17 +170,6 @@ function ProfileTabsContent({
             <span className="profile-stat__label">Saved</span>
             <span className="profile-stat__value">{savedCount}</span>
           </div>
-          <div className="profile-stat">
-            <span className="profile-stat__icon" aria-hidden="true">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                <path d="M5 11V7a7 7 0 0 1 14 0v4" />
-                <rect x="3" y="11" width="18" height="10" rx="2" ry="2" />
-                <path d="M12 16v2" />
-              </svg>
-            </span>
-            <span className="profile-stat__label">Unlocked</span>
-            <span className="profile-stat__value">{foundCount}</span>
-          </div>
         </div>
 
       <div className="tabs tabs--segmented">
@@ -202,13 +179,6 @@ function ProfileTabsContent({
           onClick={() => setTab('memories')}
         >
           Memories <span className="tab-count">{placedCount}</span>
-        </button>
-        <button
-          type="button"
-          className={`tab-button ${tab === 'unlocked' ? 'active' : ''}`}
-          onClick={() => setTab('unlocked')}
-        >
-          Unlocked <span className="tab-count">{foundCount}</span>
         </button>
         <button
           type="button"
@@ -290,76 +260,6 @@ function ProfileTabsContent({
                 );
               })}
               {!visiblePlaced.length && <div className="empty-state">No placed memories yet.</div>}
-            </div>
-          </>
-        )}
-
-        {tab === 'unlocked' && (
-          <>
-            <Input
-              placeholder="Search unlocked memories..."
-              value={unlockedSearch}
-              onChange={(event) => setUnlockedSearch(event.target.value)}
-            />
-            <div className="profile-memory-list">
-              {visibleUnlocked.map((memory) => {
-                const assets = memory.assets || [];
-                const imageCount =
-                  memory.imageCount ?? assets.filter((asset) => asset.type === 'image').length;
-                const audioCount =
-                  memory.audioCount ?? assets.filter((asset) => asset.type === 'audio').length;
-                const videoCount =
-                  memory.videoCount ?? assets.filter((asset) => asset.type === 'video').length;
-                const expiryText = formatProfileExpiry(memory.expiresAt);
-                const unlockedText = memory.unlockedAt
-                  ? new Date(memory.unlockedAt).toLocaleString()
-                  : null;
-                return (
-                  <button
-                    key={memory.id}
-                    type="button"
-                    className="profile-memory-item"
-                    onClick={() => onSelectMemory?.(memory)}
-                  >
-                    <div className="profile-memory-row">
-                      <div className="profile-memory-title">{memory.title}</div>
-                      <span className="profile-memory-pill">{memory.visibility}</span>
-                      <span className="profile-memory-pill">Found {memory.timesFound ?? 0}</span>
-                      <span className="profile-memory-pill">{expiryText}</span>
-                    </div>
-                    <div className="profile-memory-meta profile-memory-assets">
-                      <span className="profile-memory-asset">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                          <rect x="3" y="3" width="18" height="14" rx="2" ry="2" />
-                          <circle cx="8.5" cy="8" r="1.5" />
-                          <path d="M21 14l-5-5-4 4-2-2-4 4" />
-                        </svg>
-                        <span>{imageCount}</span>
-                      </span>
-                      <span className="profile-memory-asset">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                          <path d="M5 4h4l7 4v8l-7 4H5V4Z" />
-                          <path d="M15 9v6" />
-                        </svg>
-                        <span>{audioCount}</span>
-                      </span>
-                      <span className="profile-memory-asset">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                          <path d="M4 6a2 2 0 0 1 2-2h8.5a2 2 0 0 1 1.6.8l3.5 4.2a2 2 0 0 1 0 2.6l-3.5 4.2a2 2 0 0 1-1.6.8H6a2 2 0 0 1-2-2V6Z" />
-                          <path d="m12 9.5-2.5 2L12 13" />
-                        </svg>
-                        <span>{videoCount}</span>
-                      </span>
-                    </div>
-                    {(unlockedText || memory.createdAt) && (
-                      <div className="profile-memory-sub mt-4">
-                        {unlockedText ? `Unlocked ${unlockedText}` : new Date(memory.createdAt).toLocaleString()}
-                      </div>
-                    )}
-                  </button>
-                );
-              })}
-              {!visibleUnlocked.length && <div className="empty-state">No unlocked memories yet.</div>}
             </div>
           </>
         )}
