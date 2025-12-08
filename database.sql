@@ -6,18 +6,7 @@ DROP TABLE IF EXISTS user_followers;
 DROP TABLE IF EXISTS memory_unlocks;
 DROP TABLE IF EXISTS memory_assets;
 DROP TABLE IF EXISTS memories;
-DROP TABLE IF EXISTS users;
-
-SET FOREIGN_KEY_CHECKS = 1;
-
-SET FOREIGN_KEY_CHECKS = 0;
-
-DROP TABLE IF EXISTS memory_targets;
-DROP TABLE IF EXISTS journeys;
-DROP TABLE IF EXISTS user_followers;
-DROP TABLE IF EXISTS memory_unlocks;
-DROP TABLE IF EXISTS memory_assets;
-DROP TABLE IF EXISTS memories;
+DROP TABLE IF EXISTS memory_saves;
 DROP TABLE IF EXISTS users;
 
 SET FOREIGN_KEY_CHECKS = 1;
@@ -154,6 +143,24 @@ CREATE TABLE memory_unlocks (
     ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- SAVED MEMORIES: "Save memory" / "Saved Memories" feature
+CREATE TABLE memory_saves (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  memory_id BIGINT UNSIGNED NOT NULL,
+  user_id BIGINT UNSIGNED NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_save_once (memory_id, user_id),
+  KEY idx_saves_user (user_id, created_at),
+  KEY idx_saves_memory (memory_id),
+  CONSTRAINT fk_saves_memory
+    FOREIGN KEY (memory_id) REFERENCES memories(id)
+    ON DELETE CASCADE,
+  CONSTRAINT fk_saves_user
+    FOREIGN KEY (user_id) REFERENCES users(id)
+    ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- FOLLOWERS: one-way.
 CREATE TABLE user_followers (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -183,8 +190,6 @@ CREATE TABLE memory_targets (
     FOREIGN KEY (target_user_id) REFERENCES users(id)
     ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-
 
 INSERT INTO memories 
 (owner_id, journey_id, journey_step, title, short_description, body, tags, visibility, latitude, longitude, radius_m)
