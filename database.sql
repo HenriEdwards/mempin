@@ -191,171 +191,256 @@ CREATE TABLE memory_targets (
     ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-INSERT INTO memories 
-(owner_id, journey_id, journey_step, title, short_description, body, tags, visibility, latitude, longitude, radius_m)
+
+
+
+/* =======================
+   JOURNEYS (South Africa)
+   ======================= */
+INSERT INTO journeys (owner_id, title, description)
 VALUES
-(1,NULL,NULL,'Echo',NULL,NULL,NULL,'public',40.7128,-74.0060,50), -- NYC
-(1,NULL,NULL,'Whisper',NULL,NULL,NULL,'public',34.0522,-118.2437,50), -- LA
-(1,NULL,NULL,'Pulse',NULL,NULL,NULL,'public',51.5074,-0.1278,50), -- London
-(1,NULL,NULL,'Skyline',NULL,NULL,NULL,'public',48.8566,2.3522,50), -- Paris
-(1,NULL,NULL,'Rift',NULL,NULL,NULL,'public',35.6895,139.6917,50), -- Tokyo
-(1,NULL,NULL,'Horizon',NULL,NULL,NULL,'public',37.7749,-122.4194,50), -- SF
-(1,NULL,NULL,'Breeze',NULL,NULL,NULL,'public',52.5200,13.4050,50), -- Berlin
-(1,NULL,NULL,'Dawn',NULL,NULL,NULL,'public',41.9028,12.4964,50), -- Rome
-(1,NULL,NULL,'Nightfall',NULL,NULL,NULL,'public',55.7558,37.6173,50), -- Moscow
-(1,NULL,NULL,'Glint',NULL,NULL,NULL,'public',1.3521,103.8198,50), -- Singapore
-
-(1,NULL,NULL,'Shimmer',NULL,NULL,NULL,'public',28.6139,77.2090,50), -- Delhi
-(1,NULL,NULL,'Path',NULL,NULL,NULL,'public',31.2304,121.4737,50), -- Shanghai
-(1,NULL,NULL,'Ripple',NULL,NULL,NULL,'public',43.6532,-79.3832,50), -- Toronto
-(1,NULL,NULL,'Drop',NULL,NULL,NULL,'public',19.4326,-99.1332,50), -- Mexico City
-(1,NULL,NULL,'Sway',NULL,NULL,NULL,'public',-33.8688,151.2093,50), -- Sydney
-(1,NULL,NULL,'Flash',NULL,NULL,NULL,'public',-37.8136,144.9631,50), -- Melbourne
-(1,NULL,NULL,'Trace',NULL,NULL,NULL,'public',-26.2041,28.0473,50), -- Johannesburg
-(1,NULL,NULL,'Drift',NULL,NULL,NULL,'public',-23.5505,-46.6333,50), -- São Paulo
-(1,NULL,NULL,'Glow',NULL,NULL,NULL,'public',-34.6037,-58.3816,50), -- Buenos Aires
-(1,NULL,NULL,'Note',NULL,NULL,NULL,'public',59.3293,18.0686,50), -- Stockholm
-
-(1,NULL,NULL,'Frame',NULL,NULL,NULL,'public',60.1699,24.9384,50), -- Helsinki
-(1,NULL,NULL,'Moment',NULL,NULL,NULL,'public',50.0755,14.4378,50), -- Prague
-(1,NULL,NULL,'Spark',NULL,NULL,NULL,'public',52.3676,4.9041,50), -- Amsterdam
-(1,NULL,NULL,'Wave',NULL,NULL,NULL,'public',45.4642,9.1900,50), -- Milan
-(1,NULL,NULL,'Point',NULL,NULL,NULL,'public',30.0444,31.2357,50), -- Cairo
-(1,NULL,NULL,'Lift',NULL,NULL,NULL,'public',24.7136,46.6753,50), -- Riyadh
-(1,NULL,NULL,'Tone',NULL,NULL,NULL,'public',25.2048,55.2708,50), -- Dubai
-(1,NULL,NULL,'Flick',NULL,NULL,NULL,'public',32.0853,34.7818,50), -- Tel Aviv
-(1,NULL,NULL,'Snap',NULL,NULL,NULL,'public',35.6762,139.6503,50), -- Tokyo alt
-(1,NULL,NULL,'Drip',NULL,NULL,NULL,'public',34.6937,135.5023,50), -- Osaka
-
-(1,NULL,NULL,'Shape',NULL,NULL,NULL,'public',37.5665,126.9780,50), -- Seoul
-(1,NULL,NULL,'Beat',NULL,NULL,NULL,'public',22.3193,114.1694,50), -- Hong Kong
-(1,NULL,NULL,'Sight',NULL,NULL,NULL,'public',13.7563,100.5018,50), -- Bangkok
-(1,NULL,NULL,'Rest',NULL,NULL,NULL,'public',21.0278,105.8342,50), -- Hanoi
-(1,NULL,NULL,'Mark',NULL,NULL,NULL,'public',-1.2921,36.8219,50), -- Nairobi
-(1,NULL,NULL,'Still',NULL,NULL,NULL,'public',-22.9068,-43.1729,50), -- Rio
-(1,NULL,NULL,'Vibe',NULL,NULL,NULL,'public',4.7110,-74.0721,50), -- Bogota
-(1,NULL,NULL,'Pulse2',NULL,NULL,NULL,'public',14.5995,120.9842,50), -- Manila
-(1,NULL,NULL,'Hint',NULL,NULL,NULL,'public',-8.4095,115.1889,50), -- Bali
-(1,NULL,NULL,'Drift2',NULL,NULL,NULL,'public',35.0116,135.7681,50), -- Kyoto
-
-(1,NULL,NULL,'Soft',NULL,NULL,NULL,'public',-36.8485,174.7633,50), -- Auckland
-(1,NULL,NULL,'Arc',NULL,NULL,NULL,'public',25.7617,-80.1918,50), -- Miami
-(1,NULL,NULL,'Shift',NULL,NULL,NULL,'public',39.9042,116.4074,50), -- Beijing
-(1,NULL,NULL,'Key',NULL,NULL,NULL,'public',40.4168,-3.7038,50), -- Madrid
-(1,NULL,NULL,'Sign',NULL,NULL,NULL,'public',33.4484,-112.0740,50), -- Phoenix
-(1,NULL,NULL,'Tone2',NULL,NULL,NULL,'public',29.7604,-95.3698,50), -- Houston
-(1,NULL,NULL,'Wonder',NULL,NULL,NULL,'public',43.7696,11.2558,50), -- Florence
-(1,NULL,NULL,'Bloom',NULL,NULL,NULL,'public',59.9139,10.7522,50), -- Oslo
-(1,NULL,NULL,'Leaf',NULL,NULL,NULL,'public',56.9496,24.1052,50), -- Riga
-(1,NULL,NULL,'Calm',NULL,NULL,NULL,'public',55.6761,12.5683,50); -- Copenhagen
+  (1, 'Cape Peninsula Weekender', 'Two-day road trip around Cape Town and the peninsula.'),
+  (1, 'Kruger Safari Adventure',  'Game drives and bush walks in Kruger National Park.');
 
 
-INSERT INTO memories 
-(owner_id, journey_id, journey_step, title, short_description, body, tags, visibility, latitude, longitude, radius_m)
+/* =======================
+   20 GLOBAL PINS (MEMORIES)
+   - 5 of these are in South Africa
+   - owner_id = 1, no journey
+   ======================= */
+INSERT INTO memories (
+  owner_id,
+  journey_id,
+  journey_step,
+  title,
+  short_description,
+  body,
+  tags,
+  visibility,
+  latitude,
+  longitude,
+  radius_m,
+  unlock_requires_location,
+  unlock_requires_followers,
+  unlock_requires_passcode,
+  unlock_passcode_hash,
+  unlock_available_from,
+  google_place_id,
+  location_label,
+  country_code,
+  country_name,
+  admin_area_1,
+  admin_area_2,
+  location_raw,
+  is_active,
+  expires_at
+)
 VALUES
-(1,NULL,NULL,'Pathway',NULL,NULL,NULL,'public',33.7490,-84.3880,50), -- Atlanta
-(1,NULL,NULL,'Stillness',NULL,NULL,NULL,'public',47.6062,-122.3321,50), -- Seattle
-(1,NULL,NULL,'Quiet',NULL,NULL,NULL,'public',35.2271,-80.8431,50), -- Charlotte
-(1,NULL,NULL,'Turn',NULL,NULL,NULL,'public',45.5017,-73.5673,50), -- Montreal
-(1,NULL,NULL,'Edge',NULL,NULL,NULL,'public',25.6866,-100.3161,50), -- Monterrey
-(1,NULL,NULL,'Flow',NULL,NULL,NULL,'public',-12.0464,-77.0428,50), -- Lima
-(1,NULL,NULL,'Softlight',NULL,NULL,NULL,'public',6.5244,3.3792,50), -- Lagos
-(1,NULL,NULL,'Murmur',NULL,NULL,NULL,'public',52.2297,21.0122,50), -- Warsaw
-(1,NULL,NULL,'Pause',NULL,NULL,NULL,'public',53.3498,-6.2603,50), -- Dublin
-(1,NULL,NULL,'Gentle',NULL,NULL,NULL,'public',50.1109,8.6821,50), -- Frankfurt
+  -- World pins
+  (1, NULL, NULL, 'Times Square Night Walk', 'First time in New York City.', NULL, 'travel,city,usa', 'public',
+   40.758000, -73.985500, 50, 1, 0, 0, NULL, NULL, NULL,
+   'Times Square, New York, USA', 'US', 'United States', 'New York', 'New York', NULL, 1, NULL),
 
-(1,NULL,NULL,'Float',NULL,NULL,NULL,'public',35.1796,129.0756,50), -- Busan
-(1,NULL,NULL,'Trace2',NULL,NULL,NULL,'public',31.7683,35.2137,50), -- Jerusalem
-(1,NULL,NULL,'Sparkle',NULL,NULL,NULL,'public',55.9533,-3.1883,50), -- Edinburgh
-(1,NULL,NULL,'Night Air',NULL,NULL,NULL,'public',43.2220,76.8512,50), -- Almaty
-(1,NULL,NULL,'Wind',NULL,NULL,NULL,'public',22.5726,88.3639,50), -- Kolkata
-(1,NULL,NULL,'Mint',NULL,NULL,NULL,'public',-4.4419,15.2663,50), -- Kinshasa
-(1,NULL,NULL,'QuietStep',NULL,NULL,NULL,'public',33.8938,35.5018,50), -- Beirut
-(1,NULL,NULL,'Bend',NULL,NULL,NULL,'public',13.0827,80.2707,50), -- Chennai
-(1,NULL,NULL,'Signal',NULL,NULL,NULL,'public',-17.8249,31.0492,50), -- Harare
-(1,NULL,NULL,'Balance',NULL,NULL,NULL,'public',-3.3731,29.9189,50), -- Bujumbura
+  (1, NULL, NULL, 'Sunrise over Tower Bridge', 'Cold morning by the Thames.', NULL, 'travel,uk,river', 'public',
+   51.505500, -0.075400, 50, 1, 0, 0, NULL, NULL, NULL,
+   'Tower Bridge, London, UK', 'GB', 'United Kingdom', 'England', 'London', NULL, 1, NULL),
 
-(1,NULL,NULL,'Pulse3',NULL,NULL,NULL,'public',55.2708,-106.3468,50), -- Saskatchewan (rural Canada)
-(1,NULL,NULL,'Rise',NULL,NULL,NULL,'public',46.2044,6.1432,50), -- Geneva
-(1,NULL,NULL,'Breeze2',NULL,NULL,NULL,'public',47.4979,19.0402,50), -- Budapest
-(1,NULL,NULL,'Motion',NULL,NULL,NULL,'public',25.0343,-77.3963,50), -- Nassau (Bahamas)
-(1,NULL,NULL,'Layer',NULL,NULL,NULL,'public',64.9631,-19.0208,50), -- Iceland
-(1,NULL,NULL,'Mix',NULL,NULL,NULL,'public',18.1096,-77.2975,50), -- Jamaica
-(1,NULL,NULL,'Flash2',NULL,NULL,NULL,'public',40.6401,22.9444,50), -- Thessaloniki
-(1,NULL,NULL,'Drop2',NULL,NULL,NULL,'public',59.4370,24.7536,50), -- Tallinn
-(1,NULL,NULL,'Hint2',NULL,NULL,NULL,'public',45.8150,15.9819,50), -- Zagreb
-(1,NULL,NULL,'Softstep',NULL,NULL,NULL,'public',41.3260,19.8187,50), -- Tirana
+  (1, NULL, NULL, 'Shibuya Crossing Madness', 'The famous scramble crossing.', NULL, 'japan,city,night', 'public',
+   35.659500, 139.700500, 50, 1, 0, 0, NULL, NULL, NULL,
+   'Shibuya Crossing, Tokyo, Japan', 'JP', 'Japan', 'Tokyo', 'Shibuya', NULL, 1, NULL),
 
-(1,NULL,NULL,'Echo2',NULL,NULL,NULL,'public',35.4676,-97.5164,50), -- Oklahoma City
-(1,NULL,NULL,'Blip',NULL,NULL,NULL,'public',34.0007,-81.0348,50), -- Columbia
-(1,NULL,NULL,'Glance',NULL,NULL,NULL,'public',17.3850,78.4867,50), -- Hyderabad
-(1,NULL,NULL,'Tide',NULL,NULL,NULL,'public',60.4720,8.4689,50), -- Norway interior
-(1,NULL,NULL,'Shade',NULL,NULL,NULL,'public',27.7172,85.3240,50), -- Kathmandu
-(1,NULL,NULL,'SoftWind',NULL,NULL,NULL,'public',34.1526,-118.3259,50), -- Glendale (LA area)
-(1,NULL,NULL,'Wisp',NULL,NULL,NULL,'public',36.1627,-86.7816,50), -- Nashville
-(1,NULL,NULL,'Glide',NULL,NULL,NULL,'public',38.6270,-90.1994,50), -- St. Louis
-(1,NULL,NULL,'Glow2',NULL,NULL,NULL,'public',25.7617,-80.1918,50), -- Miami alt
-(1,NULL,NULL,'Calm2',NULL,NULL,NULL,'public',52.4064,16.9252,50), -- Poznań
+  (1, NULL, NULL, 'Eiffel Tower Picnic', 'Cheese, wine, and a perfect view.', NULL, 'paris,romance', 'public',
+   48.858370, 2.294481, 50, 1, 0, 0, NULL, NULL, NULL,
+   'Eiffel Tower, Paris, France', 'FR', 'France', 'Île-de-France', 'Paris', NULL, 1, NULL),
 
-(1,NULL,NULL,'Tiny',NULL,NULL,NULL,'public',24.4539,54.3773,50), -- Abu Dhabi
-(1,NULL,NULL,'EchoPoint',NULL,NULL,NULL,'public',3.1390,101.6869,50), -- Kuala Lumpur
-(1,NULL,NULL,'Soothe',NULL,NULL,NULL,'public',-15.7797,-47.9297,50), -- Brasilia
-(1,NULL,NULL,'Glimmer',NULL,NULL,NULL,'public',39.1568,117.1260,50), -- Tianjin
-(1,NULL,NULL,'Air',NULL,NULL,NULL,'public',59.9127,30.3158,50), -- St. Petersburg
-(1,NULL,NULL,'Curve',NULL,NULL,NULL,'public',-29.8587,31.0218,50), -- Durban
-(1,NULL,NULL,'Point2',NULL,NULL,NULL,'public',50.9375,6.9603,50), -- Cologne
-(1,NULL,NULL,'Shade2',NULL,NULL,NULL,'public',46.9479,7.4474,50), -- Bern
-(1,NULL,NULL,'Beat2',NULL,NULL,NULL,'public',43.6510,41.0207,50), -- Grozny
-(1,NULL,NULL,'Field',NULL,NULL,NULL,'public',30.6954,76.8227,50); -- Chandigarh
+  (1, NULL, NULL, 'Sydney Opera House Stroll', 'Walked around Circular Quay.', NULL, 'australia,harbour', 'public',
+   -33.856784, 151.215297, 50, 1, 0, 0, NULL, NULL, NULL,
+   'Sydney Opera House, Sydney, Australia', 'AU', 'Australia', 'New South Wales', 'Sydney', NULL, 1, NULL),
+
+  (1, NULL, NULL, 'Rio Copacabana Sunset', 'Beach football and caipirinhas.', NULL, 'beach,brazil,sunset', 'public',
+   -22.971177, -43.182543, 50, 1, 0, 0, NULL, NULL, NULL,
+   'Copacabana Beach, Rio de Janeiro, Brazil', 'BR', 'Brazil', 'Rio de Janeiro', 'Rio de Janeiro', NULL, 1, NULL),
+
+  (1, NULL, NULL, 'Cairo Pyramids Visit', 'Saw the Great Pyramid of Giza.', NULL, 'history,egypt', 'public',
+   29.979235, 31.134202, 80, 1, 0, 0, NULL, NULL, NULL,
+   'Giza Pyramid Complex, Giza, Egypt', 'EG', 'Egypt', 'Giza Governorate', 'Giza', NULL, 1, NULL),
+
+  (1, NULL, NULL, 'Toronto CN Tower View', 'City lights from the observation deck.', NULL, 'canada,city,view', 'public',
+   43.642566, -79.387057, 50, 1, 0, 0, NULL, NULL, NULL,
+   'CN Tower, Toronto, Canada', 'CA', 'Canada', 'Ontario', 'Toronto', NULL, 1, NULL),
+
+  (1, NULL, NULL, 'Berlin Wall Memorial', 'Walked along the remaining section.', NULL, 'germany,history', 'public',
+   52.535100, 13.390300, 50, 1, 0, 0, NULL, NULL, NULL,
+   'Berlin Wall Memorial, Berlin, Germany', 'DE', 'Germany', 'Berlin', 'Berlin', NULL, 1, NULL),
+
+  (1, NULL, NULL, 'Dubai Marina Night Cruise', 'Boats, skyscrapers, and neon.', NULL, 'uae,night,city', 'public',
+   25.080000, 55.140000, 60, 1, 0, 0, NULL, NULL, NULL,
+   'Dubai Marina, Dubai, UAE', 'AE', 'United Arab Emirates', 'Dubai', 'Dubai', NULL, 1, NULL),
+
+  (1, NULL, NULL, 'Mumbai Street Food Tour', 'Chaat, vada pav, and chaos.', NULL, 'india,food,street', 'public',
+   19.076000, 72.877700, 80, 1, 0, 0, NULL, NULL, NULL,
+   'South Mumbai, Mumbai, India', 'IN', 'India', 'Maharashtra', 'Mumbai', NULL, 1, NULL),
+
+  (1, NULL, NULL, 'Singapore Marina Bay Walk', 'Evening walk along the bay.', NULL, 'singapore,city,night', 'public',
+   1.283333, 103.860000, 60, 1, 0, 0, NULL, NULL, NULL,
+   'Marina Bay, Singapore', 'SG', 'Singapore', 'Singapore', 'Singapore', NULL, 1, NULL),
+
+  (1, NULL, NULL, 'Zócalo Mexico City', 'Historic centre of CDMX.', NULL, 'mexico,city,history', 'public',
+   19.432608, -99.133209, 60, 1, 0, 0, NULL, NULL, NULL,
+   'Zócalo, Mexico City, Mexico', 'MX', 'Mexico', 'Ciudad de México', 'Mexico City', NULL, 1, NULL),
+
+  (1, NULL, NULL, 'Hong Kong Peak View', 'Tram ride to the Peak.', NULL, 'hongkong,view,city', 'public',
+   22.275800, 114.145500, 60, 1, 0, 0, NULL, NULL, NULL,
+   'Victoria Peak, Hong Kong', 'HK', 'Hong Kong', 'Hong Kong', 'Central and Western', NULL, 1, NULL),
+
+  (1, NULL, NULL, 'Rome Colosseum Tour', 'Ancient arena in the middle of Rome.', NULL, 'italy,history,ruins', 'public',
+   41.890210, 12.492231, 50, 1, 0, 0, NULL, NULL, NULL,
+   'Colosseum, Rome, Italy', 'IT', 'Italy', 'Lazio', 'Rome', NULL, 1, NULL),
+
+  -- SOUTH AFRICA PINS (5)
+  (1, NULL, NULL, 'Cape Town City Bowl', 'Coffee and co-working in town.', NULL, 'southafrica,cape town,city', 'public',
+   -33.924870, 18.424055, 80, 1, 0, 0, NULL, NULL, NULL,
+   'Cape Town CBD, South Africa', 'ZA', 'South Africa', 'Western Cape', 'Cape Town', NULL, 1, NULL),
+
+  (1, NULL, NULL, 'Johannesburg Skyline', 'Evening drive past the CBD.', NULL, 'southafrica,johannesburg,city', 'public',
+   -26.204103, 28.047304, 80, 1, 0, 0, NULL, NULL, NULL,
+   'Johannesburg, South Africa', 'ZA', 'South Africa', 'Gauteng', 'Johannesburg', NULL, 1, NULL),
+
+  (1, NULL, NULL, 'Durban Beachfront Walk', 'Promenade along the Golden Mile.', NULL, 'southafrica,beach,durban', 'public',
+   -29.858681, 31.021839, 80, 1, 0, 0, NULL, NULL, NULL,
+   'North Beach, Durban, South Africa', 'ZA', 'South Africa', 'KwaZulu-Natal', 'Durban', NULL, 1, NULL),
+
+  (1, NULL, NULL, 'Pretoria Union Buildings', 'Views over the city.', NULL, 'southafrica,pretoria,history', 'public',
+   -25.740170, 28.212530, 80, 1, 0, 0, NULL, NULL, NULL,
+   'Union Buildings, Pretoria, South Africa', 'ZA', 'South Africa', 'Gauteng', 'Pretoria', NULL, 1, NULL),
+
+  (1, NULL, NULL, 'Kruger Rest Camp Stop', 'Hyenas in the distance at night.', NULL, 'southafrica,kruger,safari', 'public',
+   -24.993000, 31.596000, 150, 1, 0, 0, NULL, NULL, NULL,
+   'Skukuza Area, Kruger National Park, South Africa', 'ZA', 'South Africa', 'Mpumalanga', 'Kruger National Park', NULL, 1, NULL);
 
 
-INSERT INTO memories 
-(owner_id, journey_id, journey_step, title, short_description, body, tags, visibility, latitude, longitude, radius_m)
+/* =======================
+   JOURNEY MEMORIES (SA)
+   2 journeys × ~6 memories each
+   ======================= */
+
+-- Journey 1: Cape Peninsula Weekender (journeys.id = 1)
+INSERT INTO memories (
+  owner_id,
+  journey_id,
+  journey_step,
+  title,
+  short_description,
+  body,
+  tags,
+  visibility,
+  latitude,
+  longitude,
+  radius_m,
+  unlock_requires_location,
+  unlock_requires_followers,
+  unlock_requires_passcode,
+  unlock_passcode_hash,
+  unlock_available_from,
+  google_place_id,
+  location_label,
+  country_code,
+  country_name,
+  admin_area_1,
+  admin_area_2,
+  location_raw,
+  is_active,
+  expires_at
+)
 VALUES
--- AFRICA (15)
-(1,NULL,NULL,'Savanna',NULL,NULL,NULL,'public',-1.9579,30.1127,50), -- Rwanda
-(1,NULL,NULL,'Dune',NULL,NULL,NULL,'public',24.4539,54.3773,50), -- Libya desert region
-(1,NULL,NULL,'Oasis',NULL,NULL,NULL,'public',26.8206,30.8025,50), -- Egypt interior
-(1,NULL,NULL,'Drum',NULL,NULL,NULL,'public',9.0820,8.6753,50), -- Nigeria central
-(1,NULL,NULL,'SunTrail',NULL,NULL,NULL,'public',14.7167,-17.4677,50), -- Dakar
-(1,NULL,NULL,'RedDust',NULL,NULL,NULL,'public',-18.6657,35.5296,50), -- Mozambique
-(1,NULL,NULL,'EchoHill',NULL,NULL,NULL,'public',0.3476,32.5825,50), -- Kampala
-(1,NULL,NULL,'WarmWind',NULL,NULL,NULL,'public',-4.0435,39.6682,50), -- Mombasa
-(1,NULL,NULL,'Stone',NULL,NULL,NULL,'public',-6.7924,39.2083,50), -- Dar es Salaam
-(1,NULL,NULL,'Trail',NULL,NULL,NULL,'public',15.5007,32.5599,50), -- Khartoum
-(1,NULL,NULL,'Glint3',NULL,NULL,NULL,'public',-33.9249,18.4241,50), -- Cape Town
-(1,NULL,NULL,'Whisper3',NULL,NULL,NULL,'public',-20.1667,57.5000,50), -- Mauritius
-(1,NULL,NULL,'Steppe',NULL,NULL,NULL,'public',-25.7461,28.1881,50), -- Pretoria
-(1,NULL,NULL,'ShadePeak',NULL,NULL,NULL,'public',-8.8383,13.2344,50), -- Luanda
-(1,NULL,NULL,'Bloom3',NULL,NULL,NULL,'public',12.6392,-8.0029,50), -- Bamako
+  (1, 1, 1, 'Day 1: V&A Waterfront Start', 'Met up at the clock tower.', NULL, 'journey,cape town,day1', 'public',
+   -33.903000, 18.420000, 60, 1, 0, 0, NULL, NULL, NULL,
+   'V&A Waterfront, Cape Town, South Africa', 'ZA', 'South Africa', 'Western Cape', 'Cape Town', NULL, 1, NULL),
 
--- AUSTRALIA (5)
-(1,NULL,NULL,'Outback',NULL,NULL,NULL,'public',-25.2744,133.7751,50), -- Central AU
-(1,NULL,NULL,'Surf',NULL,NULL,NULL,'public',-33.8688,151.2093,50), -- Sydney
-(1,NULL,NULL,'Dustline',NULL,NULL,NULL,'public',-37.8136,144.9631,50), -- Melbourne
-(1,NULL,NULL,'CoastRun',NULL,NULL,NULL,'public',-27.4698,153.0251,50), -- Brisbane
-(1,NULL,NULL,'HorizonAU',NULL,NULL,NULL,'public',-31.9523,115.8613,50); -- Perth
+  (1, 1, 2, 'Cable Car to Table Mountain', 'Clouds rolling over the top.', NULL, 'journey,table mountain,hike', 'public',
+   -33.962800, 18.409800, 80, 1, 0, 0, NULL, NULL, NULL,
+   'Table Mountain Aerial Cableway, Cape Town', 'ZA', 'South Africa', 'Western Cape', 'Cape Town', NULL, 1, NULL),
+
+  (1, 1, 3, 'Camps Bay Sundowners', 'Beach, cocktails, and waves.', NULL, 'journey,beach,sunset', 'public',
+   -33.951000, 18.377000, 80, 1, 0, 0, NULL, NULL, NULL,
+   'Camps Bay Beach, Cape Town, South Africa', 'ZA', 'South Africa', 'Western Cape', 'Cape Town', NULL, 1, NULL),
+
+  (1, 1, 4, 'Chapman''s Peak Drive Stop', 'Stopped at a viewpoint for photos.', NULL, 'journey,roadtrip,view', 'public',
+   -34.105000, 18.350000, 80, 1, 0, 0, NULL, NULL, NULL,
+   'Chapman''s Peak Drive Viewpoint, Western Cape', 'ZA', 'South Africa', 'Western Cape', 'Noordhoek', NULL, 1, NULL),
+
+  (1, 1, 5, 'Boulders Beach Penguins', 'Penguins waddling around the rocks.', NULL, 'journey,penguins,beach', 'public',
+   -34.197000, 18.451000, 80, 1, 0, 0, NULL, NULL, NULL,
+   'Boulders Beach, Simon''s Town, South Africa', 'ZA', 'South Africa', 'Western Cape', 'Simon''s Town', NULL, 1, NULL),
+
+  (1, 1, 6, 'Cape Point Finish', 'Windy viewpoint at the end of Africa.', NULL, 'journey,cape point,finish', 'public',
+   -34.356800, 18.497000, 100, 1, 0, 0, NULL, NULL, NULL,
+   'Cape Point, Table Mountain National Park, South Africa', 'ZA', 'South Africa', 'Western Cape', 'Cape Point', NULL, 1, NULL);
 
 
-INSERT IGNORE INTO memory_unlocks (memory_id, user_id)
-SELECT m.id, 1
-FROM memories m
-WHERE m.id IN (
-    SELECT id FROM memories WHERE title IN (
-        'Savanna',
-        'Dune',
-        'Oasis',
-        'Drum',
-        'SunTrail',
-        'RedDust',
-        'EchoHill',
-        'WarmWind',
-        'Stone',
-        'Trail',
-        'Glint3',
-        'Whisper3',
-        'Steppe',
-        'ShadePeak',
-        'Bloom3'
-    )
-);
+-- Journey 2: Kruger Safari Adventure (journeys.id = 2)
+INSERT INTO memories (
+  owner_id,
+  journey_id,
+  journey_step,
+  title,
+  short_description,
+  body,
+  tags,
+  visibility,
+  latitude,
+  longitude,
+  radius_m,
+  unlock_requires_location,
+  unlock_requires_followers,
+  unlock_requires_passcode,
+  unlock_passcode_hash,
+  unlock_available_from,
+  google_place_id,
+  location_label,
+  country_code,
+  country_name,
+  admin_area_1,
+  admin_area_2,
+  location_raw,
+  is_active,
+  expires_at
+)
+VALUES
+  (1, 2, 1, 'Arrive at Kruger Gate', 'Checked in and grabbed maps.', NULL, 'journey,kruger,arrival', 'public',
+   -24.985000, 31.484000, 120, 1, 0, 0, NULL, NULL, NULL,
+   'Paul Kruger Gate, Kruger National Park, South Africa', 'ZA', 'South Africa', 'Mpumalanga', 'Kruger National Park', NULL, 1, NULL),
+
+  (1, 2, 2, 'First Afternoon Game Drive', 'Saw impala, giraffes, and zebras.', NULL, 'journey,safari,wildlife', 'public',
+   -24.990000, 31.560000, 200, 1, 0, 0, NULL, NULL, NULL,
+   'Near Skukuza, Kruger National Park, South Africa', 'ZA', 'South Africa', 'Mpumalanga', 'Kruger National Park', NULL, 1, NULL),
+
+  (1, 2, 3, 'Early Morning Lion Sighting', 'Two lions on the road at sunrise.', NULL, 'journey,lions,sunrise', 'public',
+   -25.020000, 31.580000, 200, 1, 0, 0, NULL, NULL, NULL,
+   'Sabi River Road, Kruger National Park, South Africa', 'ZA', 'South Africa', 'Mpumalanga', 'Kruger National Park', NULL, 1, NULL),
+
+  (1, 2, 4, 'Breakfast at Skukuza Camp', 'Breakfast with vervet monkeys watching.', NULL, 'journey,breakfast,camp', 'public',
+   -24.993500, 31.593500, 120, 1, 0, 0, NULL, NULL, NULL,
+   'Skukuza Rest Camp, Kruger National Park, South Africa', 'ZA', 'South Africa', 'Mpumalanga', 'Skukuza', NULL, 1, NULL),
+
+  (1, 2, 5, 'Sunset at Lower Sabie', 'Orange sky over the river.', NULL, 'journey,sunset,river', 'public',
+   -25.118000, 31.922000, 150, 1, 0, 0, NULL, NULL, NULL,
+   'Lower Sabie Rest Camp, Kruger National Park, South Africa', 'ZA', 'South Africa', 'Mpumalanga', 'Lower Sabie', NULL, 1, NULL),
+
+  (1, 2, 6, 'Last Night Braai', 'Braai at the bungalow, hyenas in the distance.', NULL, 'journey,braai,campfire', 'public',
+   -24.995000, 31.595000, 150, 1, 0, 0, NULL, NULL, NULL,
+   'Skukuza Bungalows, Kruger National Park, South Africa', 'ZA', 'South Africa', 'Mpumalanga', 'Skukuza', NULL, 1, NULL);
+
+
+/* =======================
+   UNLOCK ALL MEMORIES FOR USER 1
+   ======================= */
+
+INSERT INTO memory_unlocks (memory_id, user_id, unlocked_at, unlock_latitude, unlock_longitude)
+SELECT 
+    id,
+    1,
+    NOW(),
+    latitude,
+    longitude
+FROM memories;

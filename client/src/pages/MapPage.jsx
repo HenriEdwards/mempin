@@ -555,6 +555,8 @@ function MapPage() {
       if (!journeyId) {
         setJourneyPanel(null);
         setJourneyPanelSearch('');
+        setMemoryGroupSelection(null);
+        setFocusBounds(null);
         return;
       }
       const normalized = normalizeHandle(ownerHandle || '');
@@ -565,6 +567,34 @@ function MapPage() {
             (!normalized || normalizeHandle(memory.ownerHandle) === normalized),
         )
         .sort((a, b) => (a.journeyStep || 0) - (b.journeyStep || 0));
+
+      const coords = memoriesInJourney
+        .map((memory) => ({
+          lat: Number(memory.latitude),
+          lng: Number(memory.longitude),
+        }))
+        .filter(({ lat, lng }) => Number.isFinite(lat) && Number.isFinite(lng));
+
+      if (coords.length) {
+        const bounds = coords.reduce(
+          (acc, { lat, lng }) => ({
+            minLat: Math.min(acc.minLat, lat),
+            maxLat: Math.max(acc.maxLat, lat),
+            minLng: Math.min(acc.minLng, lng),
+            maxLng: Math.max(acc.maxLng, lng),
+          }),
+          {
+            minLat: coords[0].lat,
+            maxLat: coords[0].lat,
+            minLng: coords[0].lng,
+            maxLng: coords[0].lng,
+          },
+        );
+        setFocusBounds(bounds);
+      } else {
+        setFocusBounds(null);
+      }
+
       setJourneyPanel({
         journeyId,
         journeyTitle: journeyTitle || 'Collection',
@@ -699,13 +729,16 @@ function MapPage() {
   }, [selectedMemory]);
 
   const renderPanel = useCallback(
-    (title, onClose, actions, content) => {
-      const showHeader = Boolean(title || onClose || actions);
+    (title, onClose, actions, content, leading) => {
+      const showHeader = Boolean(title || onClose || actions || leading);
       return (
         <div className="panel-surface">
           {showHeader && (
             <div className="panel-surface__header">
-              <h3 className="panel-surface__title">{title || ''}</h3>
+              <div className="panel-surface__header-left">
+                {leading}
+                <h3 className="panel-surface__title">{title || ''}</h3>
+              </div>
               <div className="panel-surface__actions">
                 {actions}
                 {onClose && (
@@ -877,6 +910,25 @@ function MapPage() {
   const socialHandle = panels.right?.payload?.handle
     ? normalizeHandle(panels.right.payload.handle)
     : normalizedUserHandle;
+  const activeJourneyPaths = useMemo(() => {
+    const memories = journeyPanel?.memories || [];
+    if (!memories.length) return [];
+    const points = memories
+      .map((memory) => ({
+        latitude: Number(memory.latitude),
+        longitude: Number(memory.longitude),
+      }))
+      .filter((pt) => Number.isFinite(pt.latitude) && Number.isFinite(pt.longitude));
+    if (points.length < 2) return [];
+    return [
+      {
+        id: journeyPanel.journeyId,
+        points,
+        color: '#0ea5e9',
+        ownerHandle: journeyPanel.ownerHandle,
+      },
+    ];
+  }, [journeyPanel]);
   const lastRightHistory = rightHistory[rightHistory.length - 1] || null;
   const showRightBack = rightHistory.length > 0;
   const currentMemoryId = detailMemory?.id || panels.right?.payload?.memoryId || null;
@@ -889,8 +941,9 @@ function MapPage() {
 
   const leftContent = useMemo(() => {
     if (journeyPanel) {
+      const journeyTitle = journeyPanel?.journeyTitle || 'Collection';
       return renderPanel(
-        journeyPanel?.journeyTitle || 'Collection',
+        journeyTitle,
         () => openJourneyPanel({ journeyId: null }),
         null,
         (
@@ -929,7 +982,6 @@ function MapPage() {
                       className="profile-memory-item"
                       onClick={() => {
                         handleProfileMemoryClick(memory);
-                        openJourneyPanel({ journeyId: null });
                       }}
                     >
                       <div className="profile-memory-row">
@@ -976,6 +1028,29 @@ function MapPage() {
               )}
             </div>
           </>
+        ),
+        (
+          <button
+            type="button"
+            className="profile-back-button profile-back-button--inline"
+            onClick={() => openJourneyPanel({ journeyId: null })}
+            aria-label="Back to collections"
+            title="Back to collections"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M15 18l-6-6 6-6" />
+            </svg>
+          </button>
         ),
       );
     }
@@ -1357,7 +1432,7 @@ function MapPage() {
       memories: filteredMemories,
       onSelectGroup: handleGroupSelection,
       focusBounds,
-      journeyPaths,
+      journeyPaths: activeJourneyPaths,
       navigationRequest,
       onRouteComputed: (summary) => {
         setNavigationSummary(summary);
@@ -1375,7 +1450,7 @@ function MapPage() {
       filteredMemories,
       handleGroupSelection,
       focusBounds,
-      journeyPaths,
+      activeJourneyPaths,
       navigationRequest,
     ],
   );

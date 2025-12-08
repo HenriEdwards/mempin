@@ -168,6 +168,13 @@
   border-bottom: 1px solid var(--color-border);
 }
 
+.panel-surface__header-left {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
 .panel-surface__title {
   margin: 0;
   font-size: 0.95rem;
@@ -1485,6 +1492,15 @@
   height: 20px;
   display: block;
   transform: translateX(4px);
+}
+
+.profile-back-button--inline {
+  position: static;
+  width: 36px;
+  height: 36px;
+  left: auto;
+  bottom: auto;
+  box-shadow: var(--shadow-soft);
 }
 
 .profile-stats {

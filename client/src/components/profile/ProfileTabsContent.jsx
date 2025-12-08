@@ -18,7 +18,6 @@ function ProfileTabsContent({
   savedMemories = [],
   journeys = [],
   journeyMemories = {},
-  journeyVisibilityMap = {},
   onSelectMemory,
   onOpenProfile,
   onOpenJourneyPanel,
@@ -82,13 +81,6 @@ function ProfileTabsContent({
   const currentJourneyMemories = selectedJourneyId
     ? journeyMemories[selectedJourneyId]?.memories || []
     : [];
-  const currentJourneyVisibility = journeyVisibilityMap[selectedJourneyId] || new Set();
-  const journeyVisibility =
-    currentJourneyVisibility.size === 1
-      ? Array.from(currentJourneyVisibility)[0]
-      : currentJourneyVisibility.size > 1
-      ? 'mixed'
-      : currentJourneyMemories[0]?.visibility || 'mixed';
 
   const filteredJourneyMemories = useMemo(() => {
     if (!selectedJourneyId) return [];
@@ -373,16 +365,6 @@ function ProfileTabsContent({
               })}
               {!journeysList.length && (
                 <div className="empty-state">No collections yet.</div>
-              )}
-            </div>
-            <div className="journey-details">
-              <div className="journey-details__header">
-                <h4>Selected Collection memories</h4>
-                {selectedJourneyId ? <span className="pill">{journeyVisibility}</span> : null}
-              </div>
-              {!selectedJourneyId && <div className="empty-state">No collection selected.</div>}
-              {selectedJourneyId && (
-                <div className="empty-state">Memories open in the left panel.</div>
               )}
             </div>
           </div>
