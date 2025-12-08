@@ -394,25 +394,90 @@ function FlatMapView({
   useEffect(() => {
     if (!mapReady || !googleRef.current || !mapRef.current) return;
     clearOverlays(journeysLayerRef);
+    if (!journeyPaths?.length) return;
+
     const google = googleRef.current;
     const map = mapRef.current;
-    journeyPaths.forEach((journey) => {
-      const latLngs = (journey.points || [])
+    const directionsService = new google.maps.DirectionsService();
+    let cancelled = false;
+
+    const toLatLng = (points = []) =>
+      points
         .map((pt) => ({
           lat: Number(pt.latitude),
           lng: Number(pt.longitude),
         }))
         .filter((pt) => Number.isFinite(pt.lat) && Number.isFinite(pt.lng));
-      if (latLngs.length < 2) return;
-      const polyline = new google.maps.Polyline({
-        map,
-        path: latLngs,
-        strokeColor: journey.color || '#0ea5e9',
-        strokeWeight: 4,
-        strokeOpacity: 0.7,
+
+    const fetchLegPath = (origin, destination) =>
+      new Promise((resolve) => {
+        directionsService.route(
+          {
+            origin,
+            destination,
+            travelMode: google.maps.TravelMode.DRIVING,
+            provideRouteAlternatives: false,
+          },
+          (result, status) => {
+            if (status === 'OK' && result?.routes?.length) {
+              resolve(result.routes[0].overview_path || null);
+            } else {
+              resolve(null);
+            }
+          },
+        );
       });
-      journeysLayerRef.current.push(polyline);
-    });
+
+    const drawJourneys = async () => {
+      for (const journey of journeyPaths) {
+        const latLngs = toLatLng(journey.points || []);
+        if (latLngs.length < 2) continue;
+
+        const pathPoints = [];
+        for (let i = 0; i < latLngs.length - 1; i += 1) {
+          const origin = latLngs[i];
+          const destination = latLngs[i + 1];
+          let segment = null;
+          try {
+            segment = await fetchLegPath(origin, destination);
+          } catch (error) {
+            segment = null;
+          }
+          if (cancelled) return;
+          if (segment?.length) {
+            if (i > 0) {
+              segment = segment.slice(1); // avoid duplicate point joins
+            }
+            pathPoints.push(...segment);
+          } else {
+            if (i > 0 && pathPoints.length) {
+              pathPoints.push(destination);
+            } else {
+              pathPoints.push(origin, destination);
+            }
+          }
+        }
+
+        if (cancelled) return;
+
+        const polyline = new google.maps.Polyline({
+          map,
+          path: pathPoints.length ? pathPoints : latLngs,
+          strokeColor: journey.color || '#0ea5e9',
+          strokeWeight: pathPoints.length ? 6 : 4,
+          strokeOpacity: 0.9,
+          geodesic: false,
+        });
+        journeysLayerRef.current.push(polyline);
+      }
+    };
+
+    drawJourneys();
+
+    return () => {
+      cancelled = true;
+      clearOverlays(journeysLayerRef);
+    };
   }, [journeyPaths, mapReady]);
 
   useEffect(() => {
@@ -445,6 +510,7 @@ function FlatMapView({
       {
         origin,
         destination,
+        waypoints: navigationRequest.waypoints || [],
         travelMode: mode,
         provideRouteAlternatives: false,
       },

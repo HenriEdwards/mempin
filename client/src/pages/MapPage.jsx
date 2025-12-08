@@ -557,6 +557,11 @@ function MapPage() {
         setJourneyPanelSearch('');
         setMemoryGroupSelection(null);
         setFocusBounds(null);
+        setNavigationTarget(null);
+        setNavigationOrigin('');
+        setNavigationRequest(null);
+        setNavigationSummary(null);
+        setNavigationError('');
         return;
       }
       const normalized = normalizeHandle(ownerHandle || '');
@@ -567,6 +572,43 @@ function MapPage() {
             (!normalized || normalizeHandle(memory.ownerHandle) === normalized),
         )
         .sort((a, b) => (a.journeyStep || 0) - (b.journeyStep || 0));
+
+    const journeyStops = memoriesInJourney
+      .map((memory) => ({
+        lat: Number(memory.latitude),
+        lng: Number(memory.longitude),
+      }))
+        .filter((pt) => Number.isFinite(pt.lat) && Number.isFinite(pt.lng));
+
+      if (journeyStops.length >= 1) {
+        const origin =
+          userLocation && Number.isFinite(userLocation.latitude) && Number.isFinite(userLocation.longitude)
+            ? { lat: Number(userLocation.latitude), lng: Number(userLocation.longitude) }
+            : journeyStops[0];
+        const destination = journeyStops[journeyStops.length - 1];
+        const waypoints = journeyStops.slice(1, -1).map((pt) => ({ location: pt, stopover: false }));
+
+        setNavigationTarget({
+          title: journeyTitle || 'Journey',
+          latitude: destination.lat,
+          longitude: destination.lng,
+        });
+        setNavigationFromMemory(null);
+        setNavigationSummary(null);
+        setNavigationError('');
+        setNavigationMode('DRIVING');
+        setNavigationOrigin(
+          userLocation && Number.isFinite(userLocation.latitude) && Number.isFinite(userLocation.longitude)
+            ? `${Number(userLocation.latitude).toFixed(5)}, ${Number(userLocation.longitude).toFixed(5)}`
+            : `${origin.lat}, ${origin.lng}`,
+        );
+        setNavigationRequest({
+          origin,
+          destination,
+          waypoints,
+          mode: 'DRIVING',
+        });
+      }
 
       const coords = memoriesInJourney
         .map((memory) => ({
@@ -597,14 +639,14 @@ function MapPage() {
 
       setJourneyPanel({
         journeyId,
-        journeyTitle: journeyTitle || 'Collection',
+        journeyTitle: journeyTitle || 'Journey',
         ownerHandle: normalized,
         memories: memoriesInJourney,
       });
       setJourneyPanelSearch('');
       setMemoryGroupSelection(null);
     },
-    [allMemories],
+    [allMemories, userLocation],
   );
 
   const openMemoryDetails = useCallback(
@@ -709,6 +751,29 @@ function MapPage() {
     },
     [processMemorySelection],
   );
+
+  const journeyStopPoints = useMemo(() => {
+    const memories = journeyPanel?.memories || [];
+    return memories
+      .map((memory) => ({
+        lat: Number(memory.latitude),
+        lng: Number(memory.longitude),
+      }))
+      .filter((pt) => Number.isFinite(pt.lat) && Number.isFinite(pt.lng));
+  }, [journeyPanel]);
+
+  const activeJourneyPaths = useMemo(() => {
+    const points = journeyStopPoints.map((pt) => ({ latitude: pt.lat, longitude: pt.lng }));
+    if (points.length < 2) return [];
+    return [
+      {
+        id: journeyPanel?.journeyId,
+        points,
+        color: '#0ea5e9',
+        ownerHandle: journeyPanel?.ownerHandle,
+      },
+    ];
+  }, [journeyPanel?.journeyId, journeyPanel?.ownerHandle, journeyStopPoints]);
 
   useEffect(() => {
     if (rightView !== 'cluster') {
@@ -910,25 +975,6 @@ function MapPage() {
   const socialHandle = panels.right?.payload?.handle
     ? normalizeHandle(panels.right.payload.handle)
     : normalizedUserHandle;
-  const activeJourneyPaths = useMemo(() => {
-    const memories = journeyPanel?.memories || [];
-    if (!memories.length) return [];
-    const points = memories
-      .map((memory) => ({
-        latitude: Number(memory.latitude),
-        longitude: Number(memory.longitude),
-      }))
-      .filter((pt) => Number.isFinite(pt.latitude) && Number.isFinite(pt.longitude));
-    if (points.length < 2) return [];
-    return [
-      {
-        id: journeyPanel.journeyId,
-        points,
-        color: '#0ea5e9',
-        ownerHandle: journeyPanel.ownerHandle,
-      },
-    ];
-  }, [journeyPanel]);
   const lastRightHistory = rightHistory[rightHistory.length - 1] || null;
   const showRightBack = rightHistory.length > 0;
   const currentMemoryId = detailMemory?.id || panels.right?.payload?.memoryId || null;
@@ -941,7 +987,7 @@ function MapPage() {
 
   const leftContent = useMemo(() => {
     if (journeyPanel) {
-      const journeyTitle = journeyPanel?.journeyTitle || 'Collection';
+      const journeyTitle = journeyPanel?.journeyTitle || 'Journey';
       return renderPanel(
         journeyTitle,
         () => openJourneyPanel({ journeyId: null }),
@@ -949,7 +995,7 @@ function MapPage() {
         (
           <>
             <Input
-              placeholder="Search memories in this collection..."
+              placeholder="Search memories in this journey..."
               value={journeyPanelSearch}
               onChange={(event) => setJourneyPanelSearch(event.target.value)}
             />
@@ -1024,7 +1070,7 @@ function MapPage() {
                   );
                 })}
               {journeyPanel.memories.length === 0 && (
-                <div className="empty-state">No memories in this collection.</div>
+                <div className="empty-state">No memories in this journey.</div>
               )}
             </div>
           </>
@@ -1034,8 +1080,8 @@ function MapPage() {
             type="button"
             className="profile-back-button profile-back-button--inline"
             onClick={() => openJourneyPanel({ journeyId: null })}
-            aria-label="Back to collections"
-            title="Back to collections"
+            aria-label="Back to journeys"
+            title="Back to journeys"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -1084,11 +1130,7 @@ function MapPage() {
       return renderPanel(
         `@${userProfileHandle || 'profile'}`,
         () => goBackFromUserProfile(),
-        (
-          <Button variant="ghost" onClick={() => goBackFromUserProfile()}>
-            Back
-          </Button>
-        ),
+        null,
         (
           <UserProfilePanel
             isOpen
@@ -1465,7 +1507,9 @@ function MapPage() {
 
       <div className="app-shell__overlay">
         <div className="shell-top-nav">
-          <div className="shell-brand">mempin</div>
+          <button type="button" className="shell-brand shell-brand--button">
+            mempin
+          </button>
           <TopRightActions
             filters={filters}
             isFilterOpen={isFilterOpen}

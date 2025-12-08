@@ -92,6 +92,7 @@ function PlaceMemoryForm({
       .split(',')
       .map((tag) => tag.trim())
       .filter(Boolean);
+  const recentTags = suggestedTags.slice(-12);
 
   const addTag = (tag) => {
     const existing = currentTagList();
@@ -256,49 +257,31 @@ function PlaceMemoryForm({
           />
           <span>{form.body.length}/800</span>
         </div>
-        <Input
-          label="Tags"
-          value={form.tags}
-          placeholder="love,travel,park"
-          onChange={(event) => updateField('tags', event.target.value)}
-        />
-        {suggestedTags.length > 0 && (
-          <div className="tag-suggestions">
-            <span className="chip-label">Recent tags:</span>
-            <div className="chip-group">
-              {suggestedTags.map((tag) => (
-                <button
-                  key={tag}
-                  type="button"
-                  className="chip chip--clickable"
-                  onClick={() => addTag(tag)}
-                >
-                  {tag}
-                </button>
-              ))}
+        <div className="field">
+          <Input
+            label="Tags"
+            value={form.tags}
+            placeholder="love,travel,park"
+            onChange={(event) => updateField('tags', event.target.value)}
+          />
+          {recentTags.length > 0 && (
+            <div className="tag-suggestions">
+              <span className="chip-label">Recent tags:</span>
+              <div className="chip-group">
+                {recentTags.map((tag) => (
+                  <button
+                    key={tag}
+                    type="button"
+                    className="chip chip--clickable"
+                    onClick={() => addTag(tag)}
+                  >
+                    {tag}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
-        )}
-        <Input
-          label="Targeted recipients (handles)"
-          value={form.targetHandles}
-          placeholder="@friend, another_friend"
-          onChange={(event) => updateField('targetHandles', event.target.value)}
-        />
-      </div>
-
-      <div className="form-column">
-        <Select
-          label="Visibility"
-          value={form.visibility}
-          onChange={(event) => updateField('visibility', event.target.value)}
-        >
-          {VISIBILITY_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </Select>
+          )}
+        </div>
         <div className="field">
           <label>Unlock method</label>
           <div className="unlock-options">
@@ -368,6 +351,28 @@ function PlaceMemoryForm({
           )}
           {unlockError && <p className="input-error" style={{ marginTop: '0.35rem' }}>{unlockError}</p>}
         </div>
+        <div className="field">
+          <Input
+            label="Targeted recipients (handles)"
+            value={form.targetHandles}
+            placeholder="@friend, another_friend"
+            onChange={(event) => updateField('targetHandles', event.target.value)}
+          />
+        </div>
+      </div>
+
+      <div className="form-column">
+        <Select
+          label="Visibility"
+          value={form.visibility}
+          onChange={(event) => updateField('visibility', event.target.value)}
+        >
+          {VISIBILITY_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </Select>
         <div className="field">
           <label>Unlock available from (optional)</label>
           <Input

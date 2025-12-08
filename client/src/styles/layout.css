@@ -85,7 +85,22 @@
   letter-spacing: 0.08em;
   text-transform: lowercase;
   color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: 0.85rem;
+  padding: 0.55rem 0.85rem;
+  background: var(--color-surface);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  cursor: pointer;
+  height: 42px;
+  min-height: 42px;
 }
+
+.shell-brand--button {
+  pointer-events: auto;
+}
+
 
 .shell-panels {
   display: flex;
@@ -215,6 +230,8 @@
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
+  height: 42px;
+  min-height: 42px;
 }
 
 .shell-bottom-nav .shell-bottom-left,

@@ -23,6 +23,7 @@ function ProfileTabsContent({
   onOpenJourneyPanel,
   followingTabProps = {},
   className = '',
+  showSaved = true,
 }) {
   const [tab, setTab] = useState('memories');
   const [selectedJourneyId, setSelectedJourneyId] = useState(null);
@@ -39,6 +40,12 @@ function ProfileTabsContent({
       setJourneySearch('');
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    if (!showSaved && tab === 'saved') {
+      setTab('memories');
+    }
+  }, [showSaved, tab]);
 
   const normalizedHandle = normalizeHandle(profileHandle);
 
@@ -128,7 +135,7 @@ function ProfileTabsContent({
                 <path d="M5 12h14" /><path d="M12 5 5 12l7 7" />
               </svg>
             </span>
-            <span className="profile-stat__label">Collections</span>
+            <span className="profile-stat__label">Journeys</span>
             <span className="profile-stat__value">{journeyCount}</span>
           </div>
           <div className="profile-stat">
@@ -177,15 +184,17 @@ function ProfileTabsContent({
           className={`tab-button ${tab === 'journeys' ? 'active' : ''}`}
           onClick={() => setTab('journeys')}
         >
-          Collections <span className="tab-count">{journeyCount}</span>
+          Journeys <span className="tab-count">{journeyCount}</span>
         </button>
-        <button
-          type="button"
-          className={`tab-button ${tab === 'saved' ? 'active' : ''}`}
-          onClick={() => setTab('saved')}
-        >
-          Saved <span className="tab-count">{savedCount}</span>
-        </button>
+        {showSaved && (
+          <button
+            type="button"
+            className={`tab-button ${tab === 'saved' ? 'active' : ''}`}
+            onClick={() => setTab('saved')}
+          >
+            Saved <span className="tab-count">{savedCount}</span>
+          </button>
+        )}
       </div>
 
       <div className="profile-tab-content ">
@@ -256,7 +265,7 @@ function ProfileTabsContent({
           </>
         )}
 
-        {tab === 'saved' && (
+        {showSaved && tab === 'saved' && (
           <>
             <Input
               placeholder="Search saved memories..."
@@ -326,7 +335,7 @@ function ProfileTabsContent({
         {tab === 'journeys' && (
           <div className="profile-journeys">
             <Input
-              placeholder="Search collections..."
+              placeholder="Search journeys..."
               value={journeySearch}
               onChange={(event) => setJourneySearch(event.target.value)}
             />
@@ -364,7 +373,7 @@ function ProfileTabsContent({
                 );
               })}
               {!journeysList.length && (
-                <div className="empty-state">No collections yet.</div>
+                <div className="empty-state">No journeys yet.</div>
               )}
             </div>
           </div>

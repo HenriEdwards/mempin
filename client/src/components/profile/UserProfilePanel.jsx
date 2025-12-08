@@ -76,11 +76,11 @@ function UserProfilePanel({
             foundMemories={foundMemories}
             journeys={journeys}
             journeyMemories={journeyMemories}
-            journeyVisibilityMap={journeyVisibilityMap}
             onSelectMemory={onSelectMemory}
             onOpenProfile={onOpenProfile}
             onOpenJourneyPanel={onOpenJourneyPanel}
             followingTabProps={{ hideSuggestions: true, profileHandle: profile?.handle || '' }}
+            showSaved={false}
           />
         </>
       )}
