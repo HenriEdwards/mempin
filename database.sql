@@ -194,6 +194,71 @@ CREATE TABLE memory_targets (
 
 
 
+
+
+
+
+////////////////////////////////////////
+
+INSERT INTO journeys (id, owner_id, title, description)
+VALUES
+(1, 1, 'Centurion Day Trip', 'Spots around Centurion'),
+(2, 1, 'Pretoria Heritage Walk', 'Landmarks in Pretoria'),
+(3, 1, 'Johannesburg Urban Trail', 'Well-known Joburg areas');
+
+------------------------------------------------------------
+-- MEMORIES (3 per journey)
+------------------------------------------------------------
+INSERT INTO memories (
+  id, owner_id, journey_id, journey_step,
+  title, short_description, latitude, longitude,
+  visibility, unlock_requires_location
+)
+VALUES
+-- CENTURION
+(1, 1, 1, 1, 'Irene Dairy Farm', 'Chill morning', -25.8798, 28.2275, 'public', 0),
+(2, 1, 1, 2, 'Centurion Mall Lake', 'Evening stroll', -25.8551, 28.1903, 'public', 0),
+(3, 1, 1, 3, 'Hennops Trail', 'Hiking memory', -25.8455, 27.9988, 'public', 0),
+
+-- PRETORIA
+(4, 1, 2, 1, 'Union Buildings', 'Great view', -25.7402, 28.2120, 'public', 0),
+(5, 1, 2, 2, 'Loftus Stadium', 'Match day', -25.7532, 28.2220, 'public', 0),
+(6, 1, 2, 3, 'Menlyn Maine', 'Coffee stop', -25.7876, 28.2750, 'public', 0),
+
+-- JOHANNESBURG
+(7, 1, 3, 1, 'Nelson Mandela Square', 'Famous statue', -26.1076, 28.0567, 'public', 0),
+(8, 1, 3, 2, 'Zoo Lake', 'Walk around lake', -26.1453, 28.0307, 'public', 0),
+(9, 1, 3, 3, 'Constitution Hill', 'Historic site', -26.1899, 28.0418, 'public', 0);
+
+------------------------------------------------------------
+-- UNLOCK ALL FOR USER 1
+------------------------------------------------------------
+INSERT INTO memory_unlocks (memory_id, user_id)
+VALUES
+(1,1),(2,1),(3,1),
+(4,1),(5,1),(6,1),
+(7,1),(8,1),(9,1);
+///////////////////////////////////////////////////////////////////
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 /* =======================
    JOURNEYS (South Africa)
    ======================= */

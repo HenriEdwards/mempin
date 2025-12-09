@@ -1,0 +1,2 @@
+'incognito mode'
+anonymous mode

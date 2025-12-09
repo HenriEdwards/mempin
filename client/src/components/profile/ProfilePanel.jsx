@@ -16,6 +16,9 @@ function ProfilePanel({
   journeyMemories = {},
   journeyVisibilityMap = {},
   onOpenJourneyPanel,
+  defaultJourneyId = null,
+  defaultJourneyScroll = 0,
+  onJourneyViewChange,
 }) {
   const { user } = useAuth();
   const [stats, setStats] = useState(null);
@@ -75,6 +78,12 @@ function ProfilePanel({
             onSelectMemory={onSelectMemory}
             onOpenProfile={onOpenProfile}
             onOpenJourneyPanel={onOpenJourneyPanel}
+            avatarUrl={user?.avatarUrl || ''}
+            displayName={user?.name || ''}
+            showProfileHeader={false}
+            defaultJourneyId={defaultJourneyId}
+            defaultJourneyScroll={defaultJourneyScroll}
+            onJourneyViewChange={onJourneyViewChange}
           />
           {loading && <p>Loading stats...</p>}
           {error && <p className="error-text">{error}</p>}

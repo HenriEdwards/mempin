@@ -7,14 +7,17 @@
   --color-surface-darker: #dfdfdf;
   --color-surface-darkerer: #d1d1d1;
 
-  --color-border: #dcdcdc;
+  --color-border: #e3e3e3;
+  --color-border-strong: #000000;
+  --panel-bg: #ffffff;
   --color-text: #1f1f1f;
   --color-text-muted: #6e6e73;
   --color-accent: #00b4e1;
   --shadow-soft: none;
+  --shadow-strong: none;
   --explorer-bg: rgba(255, 255, 255, 0.9);
-  --explorer-border: rgba(0, 0, 0, 0.06);
-  --explorer-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+  --explorer-border: rgba(0, 147, 213, 0.12);
+  --explorer-shadow: none;
   --explorer-text: #161616;
   --explorer-subtext: #4a4a4a;
   --explorer-button-bg: rgba(0, 0, 0, 0.02);
@@ -30,13 +33,16 @@
   --color-surface-alt: #1f1f1f;
   --color-surface-muted: #121212;
   --color-border: #2c2c2c;
+  --color-border-strong: #363636;
   --color-text: #f0f0f0;
   --color-text-muted: #a8a8a8;
   --color-accent: #00b4e1;
   --shadow-soft: none;
+  --shadow-strong: none;
+  --panel-bg: rgba(24, 24, 24, 0.94);
   --explorer-bg: rgba(20, 20, 20, 0.9);
   --explorer-border: rgba(255, 255, 255, 0.08);
-  --explorer-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  --explorer-shadow: none;
   --explorer-text: #ededed;
   --explorer-subtext: #4a4a4a;
   --explorer-button-bg: rgba(255, 255, 255, 0.04);

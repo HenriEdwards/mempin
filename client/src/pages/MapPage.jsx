@@ -102,13 +102,8 @@ function MapPage() {
   const [userJourneysTarget, setUserJourneysTarget] = useState(null);
   const [journeyPanel, setJourneyPanel] = useState(null);
   const [journeyPanelSearch, setJourneyPanelSearch] = useState('');
-  const [navigationTarget, setNavigationTarget] = useState(null);
-  const [navigationOrigin, setNavigationOrigin] = useState('');
-  const [navigationMode, setNavigationMode] = useState('DRIVING');
-  const [navigationSummary, setNavigationSummary] = useState(null);
-  const [navigationError, setNavigationError] = useState('');
-  const [navigationRequest, setNavigationRequest] = useState(null);
-  const [navigationFromMemory, setNavigationFromMemory] = useState(null);
+  const [profileJourneyState, setProfileJourneyState] = useState({ id: null, scrollTop: 0 });
+  const [userProfileJourneyState, setUserProfileJourneyState] = useState({ id: null, scrollTop: 0 });
   const [viewportWidth, setViewportWidth] = useState(
     typeof window !== 'undefined' ? window.innerWidth : 1440,
   );
@@ -550,6 +545,33 @@ function MapPage() {
     [pushToast],
   );
 
+  const buildRoutePlan = useCallback(
+    (stops = []) => {
+      const validStops = (stops || [])
+        .map((pt) => ({
+          lat: Number(pt.lat),
+          lng: Number(pt.lng),
+        }))
+        .filter((pt) => Number.isFinite(pt.lat) && Number.isFinite(pt.lng));
+
+      const userOrigin =
+        userLocation &&
+        Number.isFinite(userLocation.latitude) &&
+        Number.isFinite(userLocation.longitude)
+          ? { lat: Number(userLocation.latitude), lng: Number(userLocation.longitude) }
+          : null;
+
+      const baseStops = userOrigin ? [userOrigin, ...validStops] : validStops;
+      if (baseStops.length < 2) return null;
+
+      const origin = baseStops[0];
+      const destination = baseStops[baseStops.length - 1];
+      const waypoints = baseStops.slice(1, -1).map((pt) => ({ location: pt, stopover: false }));
+      return { origin, destination, waypoints };
+    },
+    [userLocation],
+  );
+
   const openJourneyPanel = useCallback(
     ({ journeyId, journeyTitle, ownerHandle }) => {
       if (!journeyId) {
@@ -557,11 +579,6 @@ function MapPage() {
         setJourneyPanelSearch('');
         setMemoryGroupSelection(null);
         setFocusBounds(null);
-        setNavigationTarget(null);
-        setNavigationOrigin('');
-        setNavigationRequest(null);
-        setNavigationSummary(null);
-        setNavigationError('');
         return;
       }
       const normalized = normalizeHandle(ownerHandle || '');
@@ -579,36 +596,6 @@ function MapPage() {
         lng: Number(memory.longitude),
       }))
         .filter((pt) => Number.isFinite(pt.lat) && Number.isFinite(pt.lng));
-
-      if (journeyStops.length >= 1) {
-        const origin =
-          userLocation && Number.isFinite(userLocation.latitude) && Number.isFinite(userLocation.longitude)
-            ? { lat: Number(userLocation.latitude), lng: Number(userLocation.longitude) }
-            : journeyStops[0];
-        const destination = journeyStops[journeyStops.length - 1];
-        const waypoints = journeyStops.slice(1, -1).map((pt) => ({ location: pt, stopover: false }));
-
-        setNavigationTarget({
-          title: journeyTitle || 'Journey',
-          latitude: destination.lat,
-          longitude: destination.lng,
-        });
-        setNavigationFromMemory(null);
-        setNavigationSummary(null);
-        setNavigationError('');
-        setNavigationMode('DRIVING');
-        setNavigationOrigin(
-          userLocation && Number.isFinite(userLocation.latitude) && Number.isFinite(userLocation.longitude)
-            ? `${Number(userLocation.latitude).toFixed(5)}, ${Number(userLocation.longitude).toFixed(5)}`
-            : `${origin.lat}, ${origin.lng}`,
-        );
-        setNavigationRequest({
-          origin,
-          destination,
-          waypoints,
-          mode: 'DRIVING',
-        });
-      }
 
       const coords = memoriesInJourney
         .map((memory) => ({
@@ -659,24 +646,11 @@ function MapPage() {
     [fetchMemoryDetails, openMemoryDetailsPanel],
   );
 
-  const handleCloseNavigation = useCallback(() => {
-    setNavigationTarget(null);
-    setNavigationRequest(null);
-    setNavigationSummary(null);
-    setNavigationError('');
-    setNavigationFromMemory(null);
-  }, []);
-
   const processMemorySelection = useCallback(
     (memory, options = {}) => {
       if (!memory) return;
       setUnlockError('');
       const pushHistory = Boolean(options.pushHistory);
-
-       // If navigation panel is open for another memory, close it before opening new detail
-      if (navigationTarget && Number(memory.id) !== Number(navigationTarget.id)) {
-        handleCloseNavigation();
-      }
 
       const isUnlockFree =
         !memory.unlockRequiresLocation &&
@@ -715,7 +689,7 @@ function MapPage() {
       setSelectedMemory(memory);
       setSelectedMemoryPushHistory(pushHistory);
     },
-    [user, foundMemories, placedMemories, openMemoryDetails, navigationTarget, handleCloseNavigation],
+    [user, foundMemories, placedMemories, openMemoryDetails],
   );
 
   const handleProfileMemoryClick = useCallback(
@@ -761,6 +735,11 @@ function MapPage() {
       }))
       .filter((pt) => Number.isFinite(pt.lat) && Number.isFinite(pt.lng));
   }, [journeyPanel]);
+
+  const highlightedJourneyMemoryIds = useMemo(
+    () => new Set((journeyPanel?.memories || []).map((memory) => String(memory.id))),
+    [journeyPanel?.memories],
+  );
 
   const activeJourneyPaths = useMemo(() => {
     const points = journeyStopPoints.map((pt) => ({ latitude: pt.lat, longitude: pt.lng }));
@@ -839,76 +818,46 @@ function MapPage() {
     [],
   );
 
-  const handleOpenExternalMap = useCallback((memory) => {
-    if (!memory) return;
-    const lat = Number(memory.latitude);
-    const lng = Number(memory.longitude);
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
-    const url = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
-    window.open(url, '_blank', 'noopener,noreferrer');
-  }, []);
+  const handleOpenExternalMap = useCallback(
+    (target) => {
+      if (!target) return;
+      const baseStops = Array.isArray(target.stops)
+        ? target.stops
+        : [
+            {
+              lat: Number(target.latitude),
+              lng: Number(target.longitude),
+            },
+          ];
+      const routePlan = buildRoutePlan(baseStops);
+      if (!routePlan) return;
+      const origin = `${routePlan.origin.lat},${routePlan.origin.lng}`;
+      const destination = `${routePlan.destination.lat},${routePlan.destination.lng}`;
+      const waypointText = (routePlan.waypoints || [])
+        .map((wp) => {
+          const pt = wp.location || {};
+          return `${pt.lat},${pt.lng}`;
+        })
+        .join('|');
 
-  const handleNavigateFromMemory = useCallback(
-    (memory) => {
-      if (!memory) return;
-      const lat = Number(memory.latitude);
-      const lng = Number(memory.longitude);
-      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
-      setNavigationFromMemory(memory);
-      setNavigationTarget(memory);
-      const originValue = userLocation
-        ? `${Number(userLocation.latitude).toFixed(5)}, ${Number(userLocation.longitude).toFixed(5)}`
-        : '';
-      setNavigationOrigin(originValue);
-      setNavigationMode('DRIVING');
-      setNavigationSummary(null);
-      setNavigationError('');
-      setNavigationRequest({
-        origin: userLocation
-          ? { lat: Number(userLocation.latitude), lng: Number(userLocation.longitude) }
-          : originValue,
-        destination: { lat, lng },
-        mode: 'DRIVING',
+      const params = new URLSearchParams({
+        api: '1',
+        origin,
+        destination,
+        travelmode: 'driving',
       });
+      if (waypointText) {
+        params.set('waypoints', waypointText);
+      }
+      const url = `https://www.google.com/maps/dir/?${params.toString()}`;
+      window.open(url, '_blank', 'noopener,noreferrer');
     },
-    [userLocation],
+    [buildRoutePlan],
   );
-
-  const handleStartNavigation = useCallback(() => {
-    if (!navigationTarget) return;
-    const lat = Number(navigationTarget.latitude);
-    const lng = Number(navigationTarget.longitude);
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-      setNavigationError('Destination is missing coordinates.');
-      return;
-    }
-    const originValue = navigationOrigin?.trim();
-    const originCoords = originValue
-      ? originValue
-      : userLocation
-      ? { lat: Number(userLocation.latitude), lng: Number(userLocation.longitude) }
-      : null;
-    if (!originCoords) {
-      setNavigationError('Enter a start location.');
-      return;
-    }
-    setNavigationError('');
-    setNavigationRequest({
-      origin: originCoords,
-      destination: { lat, lng },
-      mode: navigationMode,
-    });
-  }, [navigationTarget, navigationOrigin, navigationMode, userLocation]);
 
   useEffect(() => {
     if (!isMobile) return;
-    // ensure only one left slot layer
     if (placingMemory) {
-      handleCloseNavigation();
-      setJourneyPanel(null);
-      setMemoryGroupSelection(null);
-      setDetailMemory(null);
-    } else if (navigationTarget) {
       setJourneyPanel(null);
       setMemoryGroupSelection(null);
       setDetailMemory(null);
@@ -918,15 +867,7 @@ function MapPage() {
     } else if (journeyPanel && memoryGroupSelection) {
       setMemoryGroupSelection(null);
     }
-  }, [
-    isMobile,
-    placingMemory,
-    navigationTarget,
-    handleCloseNavigation,
-    journeyPanel,
-    memoryGroupSelection,
-    detailMemory,
-  ]);
+  }, [isMobile, placingMemory, journeyPanel, memoryGroupSelection, detailMemory]);
 
 
   const openProfileFromList = useCallback(
@@ -991,7 +932,19 @@ function MapPage() {
       return renderPanel(
         journeyTitle,
         () => openJourneyPanel({ journeyId: null }),
-        null,
+        (
+          <Button
+            variant="primary"
+            onClick={() =>
+              handleOpenExternalMap({
+                stops: journeyStopPoints,
+                title: journeyTitle,
+              })
+            }
+          >
+            Google Maps
+          </Button>
+        ),
         (
           <>
             <Input
@@ -1102,8 +1055,24 @@ function MapPage() {
     }
 
     if (leftView === 'profile') {
+      const profileTitle = '';
+      const profileLeading = (
+        <div className="profile-header profile-header--panel">
+          {user?.avatarUrl ? (
+            <img src={user.avatarUrl} alt="" className="profile-header__avatar" />
+          ) : (
+            <div className="profile-header__avatar profile-header__avatar--fallback">
+              {(user?.name || normalizedUserHandle || '?').charAt(0).toUpperCase()}
+            </div>
+          )}
+          <div className="profile-header__meta">
+            <div className="profile-header__handle">@{normalizedUserHandle || 'profile'}</div>
+            {user?.name && <div className="profile-header__name">{user.name}</div>}
+          </div>
+        </div>
+      );
       return renderPanel(
-        'Profile',
+        profileTitle,
         closeLeftPanel,
         null,
         (
@@ -1118,17 +1087,42 @@ function MapPage() {
             onOpenProfile={openProfileFromList}
             journeyMemories={journeyMemories}
             journeyVisibilityMap={journeyVisibilityMap}
-            onOpenJourneyPanel={({ journeyId, journeyTitle }) =>
-              openJourneyPanel({ journeyId, journeyTitle, ownerHandle: normalizedUserHandle })
+            defaultJourneyId={profileJourneyState.id}
+            defaultJourneyScroll={profileJourneyState.scrollTop}
+            onJourneyViewChange={({ journeyId, scrollTop }) =>
+              setProfileJourneyState({ id: journeyId, scrollTop: scrollTop || 0 })
             }
+            onOpenJourneyPanel={({ journeyId, journeyTitle, journeyListScroll }) => {
+              setProfileJourneyState({
+                id: journeyId,
+                scrollTop: journeyListScroll || profileJourneyState.scrollTop || 0,
+              });
+              openJourneyPanel({ journeyId, journeyTitle, ownerHandle: normalizedUserHandle });
+            }}
           />
         ),
+        profileLeading,
       );
     }
 
     if (leftView === 'userProfile') {
+      const normalizedTargetHandle = normalizeHandle(userProfileHandle || userMemoriesTarget?.handle || '');
+      const targetName = userMemoriesTarget?.name || '';
+      const userProfileLeading = (
+        <div className="profile-header profile-header--panel">
+          <div className="profile-header__avatar profile-header__avatar--fallback">
+            {(targetName || normalizedTargetHandle || '?').charAt(0).toUpperCase()}
+          </div>
+          <div className="profile-header__meta">
+            <div className="profile-header__handle">
+              @{normalizedTargetHandle || userProfileHandle || 'profile'}
+            </div>
+            {targetName && <div className="profile-header__name">{targetName}</div>}
+          </div>
+        </div>
+      );
       return renderPanel(
-        `@${userProfileHandle || 'profile'}`,
+        '',
         () => goBackFromUserProfile(),
         null,
         (
@@ -1155,12 +1149,18 @@ function MapPage() {
             journeyMemories={userJourneysData.memMap}
             journeyVisibilityMap={userJourneysData.visibilityMap}
             onOpenProfile={openProfileFromList}
+            defaultJourneyId={userProfileJourneyState.id}
+            defaultJourneyScroll={userProfileJourneyState.scrollTop}
+            onJourneyViewChange={({ journeyId, scrollTop }) =>
+              setUserProfileJourneyState({ id: journeyId, scrollTop: scrollTop || 0 })
+            }
             onOpenJourneyPanel={({ journeyId, journeyTitle }) =>
               openJourneyPanel({ journeyId, journeyTitle, ownerHandle: userMemoriesTarget?.handle })
             }
             onClose={() => goBackFromUserProfile()}
           />
         ),
+        userProfileLeading,
       );
     }
 
@@ -1177,6 +1177,8 @@ function MapPage() {
     savedMemories,
     journeys,
     openProfileFromList,
+    handleOpenExternalMap,
+    journeyStopPoints,
     journeyMemories,
     journeyVisibilityMap,
     normalizedUserHandle,
@@ -1190,6 +1192,10 @@ function MapPage() {
     userJourneysData.memMap,
     userJourneysData.visibilityMap,
     userMemoriesTarget?.handle,
+    userMemoriesTarget?.name,
+    user,
+    profileJourneyState,
+    userProfileJourneyState,
     goBackFromUserProfile,
     renderPanel,
   ]);
@@ -1243,90 +1249,6 @@ function MapPage() {
   ]);
 
   const rightContent = useMemo(() => {
-    if (navigationTarget) {
-      const navigationBack = () => {
-        const memoryToReopen = navigationFromMemory;
-        handleCloseNavigation();
-        if (memoryToReopen) {
-          openMemoryDetails(memoryToReopen, { pushHistory: false });
-          setNavigationFromMemory(null);
-        }
-      };
-
-      return renderPanel(
-        `Navigate to ${navigationTarget.title || 'memory'}`,
-        handleCloseNavigation,
-        navigationFromMemory ? (
-          <Button variant="ghost" onClick={navigationBack}>
-            Back
-          </Button>
-        ) : null,
-        (
-          <div className="navigate-panel">
-            <Input
-              label="Start"
-              placeholder="Your location or address"
-              value={navigationOrigin}
-              onChange={(event) => setNavigationOrigin(event.target.value)}
-            />
-            <Input
-              label="Destination"
-              value={`${Number(navigationTarget.latitude).toFixed(5)}, ${Number(navigationTarget.longitude).toFixed(5)}`}
-              readOnly
-              disabled
-            />
-            <div className="nav-modes">
-              {[
-                ['DRIVING', 'Drive'],
-                ['WALKING', 'Walk'],
-                ['BICYCLING', 'Bike'],
-                ['TRANSIT', 'Transit'],
-              ].map(([value, label]) => (
-                <Button
-                  key={value}
-                  variant={navigationMode === value ? 'primary' : 'ghost'}
-                  onClick={() => setNavigationMode(value)}
-                >
-                  {label}
-                </Button>
-              ))}
-            </div>
-            {navigationSummary && (
-              <div className="nav-summary">
-                <span>{navigationSummary.distanceText || ''}</span>
-                <span>-</span>
-                <span>{navigationSummary.durationText || ''}</span>
-              </div>
-            )}
-            {navigationError && <p className="error-text">{navigationError}</p>}
-            <div className="form-actions">
-              <Button variant="primary" onClick={handleStartNavigation}>
-                Navigate
-              </Button>
-              <Button variant="ghost" onClick={() => handleOpenExternalMap(navigationTarget)}>
-                View on Google Maps
-              </Button>
-            </div>
-            <div className="navigation-memory-preview">
-              <h4>{navigationTarget.title}</h4>
-              {navigationTarget.shortDescription && (
-                <p className="memory-details__preview">{navigationTarget.shortDescription}</p>
-              )}
-              {(navigationTarget.tags || []).length > 0 && (
-                <div className="memory-details__tags">
-                  {(navigationTarget.tags || []).map((tag) => (
-                    <span key={tag} className="chip">
-                      #{tag}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        ),
-      );
-    }
-
     if (rightView === 'memoryDetails') {
       return renderPanel(
         detailMemory?.title || 'Memory',
@@ -1344,7 +1266,6 @@ function MapPage() {
                 memory={detailMemory}
                 onGenerateQR={null}
                 onViewProfile={openProfileFromList}
-                onNavigate={handleNavigateFromMemory}
                 onOpenExternal={handleOpenExternalMap}
                 onToggleSave={(mem, next) => handleToggleSave(mem, next)}
               />
@@ -1441,7 +1362,6 @@ function MapPage() {
     goBackRightPanel,
     detailLoading,
     openProfileFromList,
-    handleNavigateFromMemory,
     handleOpenExternalMap,
     clusterGroup,
     processMemorySelection,
@@ -1455,18 +1375,10 @@ function MapPage() {
     activeMemoriesHandle,
     showRightBack,
     showMemoryBack,
-    navigationTarget,
-    navigationOrigin,
-    navigationMode,
-    navigationSummary,
-    navigationError,
-    handleStartNavigation,
-    handleOpenExternalMap,
-    handleCloseNavigation,
-    navigationFromMemory,
-    setNavigationOrigin,
     openMemoryDetails,
-  ]);  const mapProps = useMemo(
+  ]);
+
+  const mapProps = useMemo(
     () => ({
       userLocation,
       locationError,
@@ -1475,15 +1387,9 @@ function MapPage() {
       onSelectGroup: handleGroupSelection,
       focusBounds,
       journeyPaths: activeJourneyPaths,
-      navigationRequest,
-      onRouteComputed: (summary) => {
-        setNavigationSummary(summary);
-        if (!summary) {
-          setNavigationError('Unable to find a route.');
-        } else {
-          setNavigationError('');
-        }
-      },
+      highlightedMemoryIds: highlightedJourneyMemoryIds,
+      navigationRequest: null,
+      onRouteComputed: undefined,
     }),
     [
       userLocation,
@@ -1493,7 +1399,7 @@ function MapPage() {
       handleGroupSelection,
       focusBounds,
       activeJourneyPaths,
-      navigationRequest,
+      highlightedJourneyMemoryIds,
     ],
   );
 
@@ -1507,8 +1413,9 @@ function MapPage() {
 
       <div className="app-shell__overlay">
         <div className="shell-top-nav">
-          <button type="button" className="shell-brand shell-brand--button">
-            mempin
+          <button type="button" className="shell-brand shell-brand--button" aria-label="mempin home">
+            <span className="shell-brand__mem">mem</span>
+            <span className="shell-brand__pin">pin</span>
           </button>
           <TopRightActions
             filters={filters}
@@ -1524,13 +1431,13 @@ function MapPage() {
         </div>
 
         <div className="shell-panels">
-          <div className={`shell-panel-slot shell-panel-slot--left ${leftContent ? 'is-active' : 'is-empty'}`}>
+          <div className={`shell-panel-slot shell-panel-slot--left ${leftContent ? 'is-active rounded-xs' : 'is-empty'}`}>
             {leftContent ? <div className="shell-panel shell-panel--left">{leftContent}</div> : null}
           </div>
-          <div className={`shell-panel-slot shell-panel-slot--center ${centerContent ? 'is-active' : 'is-empty'}`}>
+          <div className={`shell-panel-slot shell-panel-slot--center ${centerContent ? 'is-active rounded-xs' : 'is-empty'}`}>
             {centerContent ? <div className="shell-panel shell-panel--center">{centerContent}</div> : null}
           </div>
-          <div className={`shell-panel-slot shell-panel-slot--right ${rightContent ? 'is-active' : 'is-empty'}`}>
+          <div className={`shell-panel-slot shell-panel-slot--right ${rightContent ? 'is-active rounded-xs' : 'is-empty'}`}>
             {rightContent ? <div className="shell-panel shell-panel--right">{rightContent}</div> : null}
           </div>
         </div>

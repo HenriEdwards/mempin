@@ -99,7 +99,7 @@ export function UIProvider({ children }) {
     const normalized = normalizeHandle(handle);
     if (!normalized) return;
     setPanels((prev) => {
-      setLeftHistory(prev.left);
+      setLeftHistory(null);
       return {
         ...prev,
         left: { view: 'userProfile', payload: { handle: normalized } },
@@ -114,10 +114,7 @@ export function UIProvider({ children }) {
   }, []);
 
   const goBackFromUserProfile = useCallback(() => {
-    setPanels((prev) => ({
-      ...prev,
-      left: leftHistory || panelTemplate.left,
-    }));
+    setPanels((prev) => ({ ...prev, left: panelTemplate.left }));
     setLeftHistory(null);
     setUserProfileHandle('');
     setUserProfileActions({
@@ -125,7 +122,7 @@ export function UIProvider({ children }) {
       onFollow: null,
       onUnfollow: null,
     });
-  }, [leftHistory]);
+  }, []);
 
   const openMemoriesPanel = useCallback(
     (payload = null) => {

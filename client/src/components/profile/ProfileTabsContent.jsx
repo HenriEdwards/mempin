@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Input from '../ui/Input.jsx';
 import { normalizeHandle } from '../../utils/handles.js';
 
@@ -24,12 +24,20 @@ function ProfileTabsContent({
   followingTabProps = {},
   className = '',
   showSaved = true,
+  defaultJourneyId = null,
+  defaultJourneyScroll = 0,
+  onJourneyViewChange,
+  avatarUrl = '',
+  displayName = '',
+  showProfileHeader = true,
 }) {
   const [tab, setTab] = useState('memories');
   const [selectedJourneyId, setSelectedJourneyId] = useState(null);
   const [memorySearch, setMemorySearch] = useState('');
   const [savedSearch, setSavedSearch] = useState('');
   const [journeySearch, setJourneySearch] = useState('');
+  const journeyListRef = useRef(null);
+  const [journeyScroll, setJourneyScroll] = useState(0);
 
   useEffect(() => {
     if (!isOpen) {
@@ -38,6 +46,7 @@ function ProfileTabsContent({
       setMemorySearch('');
       setSavedSearch('');
       setJourneySearch('');
+      setJourneyScroll(0);
     }
   }, [isOpen]);
 
@@ -85,6 +94,18 @@ function ProfileTabsContent({
     );
   }, [journeys, journeySearch]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    if (defaultJourneyId && journeysList.some((j) => j.id === defaultJourneyId)) {
+      setTab('journeys');
+      setSelectedJourneyId(defaultJourneyId);
+      const targetScroll = journeyScroll || defaultJourneyScroll || 0;
+      if (journeyListRef.current && targetScroll > 0) {
+        journeyListRef.current.scrollTop = targetScroll;
+      }
+    }
+  }, [defaultJourneyId, defaultJourneyScroll, isOpen, journeysList, journeyScroll]);
+
   const currentJourneyMemories = selectedJourneyId
     ? journeyMemories[selectedJourneyId]?.memories || []
     : [];
@@ -105,8 +126,21 @@ function ProfileTabsContent({
   return (
     <>
       <div className={className}>
-        <p className="muted">{normalizedHandle ? `@${normalizedHandle}` : ''}</p>
-
+        {showProfileHeader && (
+          <div className="profile-header">
+            {avatarUrl ? (
+              <img src={avatarUrl} alt="" className="profile-header__avatar" />
+            ) : (
+              <div className="profile-header__avatar profile-header__avatar--fallback">
+                {(displayName || normalizedHandle || '?').charAt(0).toUpperCase()}
+              </div>
+            )}
+            <div className="profile-header__meta">
+              <div className="profile-header__handle">@{normalizedHandle}</div>
+              {displayName && <div className="profile-header__name">{displayName}</div>}
+            </div>
+          </div>
+        )}
         <div className="profile-stat-row">
           <div className="profile-stat">
             <span className="profile-stat__icon" aria-hidden="true">
@@ -339,7 +373,15 @@ function ProfileTabsContent({
               value={journeySearch}
               onChange={(event) => setJourneySearch(event.target.value)}
             />
-            <div className="memories-panel__list">
+            <div
+              className="memories-panel__list"
+              ref={journeyListRef}
+              onScroll={() => {
+                const nextScroll = journeyListRef.current?.scrollTop || 0;
+                setJourneyScroll(nextScroll);
+                onJourneyViewChange?.({ journeyId: selectedJourneyId, scrollTop: nextScroll });
+              }}
+            >
               {journeysList.map((journey) => {
                 const selected = journey.id === selectedJourneyId;
                 return (
@@ -350,11 +392,15 @@ function ProfileTabsContent({
                     onClick={() => {
                       const nextId = selected ? null : journey.id;
                       setSelectedJourneyId(nextId);
+                      const nextScroll = journeyListRef.current?.scrollTop || 0;
+                      setJourneyScroll(nextScroll);
+                      onJourneyViewChange?.({ journeyId: nextId, scrollTop: nextScroll });
                       if (nextId) {
                         onOpenJourneyPanel?.({
                           journeyId: journey.id,
                           journeyTitle: journey.title,
                           ownerHandle: normalizedHandle,
+                          journeyListScroll: nextScroll,
                           memories: filteredJourneyMemories.length ? filteredJourneyMemories : [],
                         });
                       } else {

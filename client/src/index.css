@@ -23,6 +23,19 @@ body {
   font-family: 'Montserrat', 'Helvetica Neue', 'Segoe UI', system-ui, -apple-system,
     BlinkMacSystemFont, sans-serif;
   color: var(--color-text);
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body,
+button,
+input,
+textarea,
+select {
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 #root {

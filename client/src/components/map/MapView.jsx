@@ -8,6 +8,7 @@ const MEMORY_PIN_STYLES = {
   audio: { fill: '#22c55e', stroke: '#15803d' }, // green
   video: { fill: '#facc15', stroke: '#d97706' }, // yellow
   both: { fill: '#ef4444', stroke: '#b91c1c' }, // red
+  journey: { fill: '#fb923c', stroke: '#ea580c' }, // orange highlight
 };
 
 const memoryIconCache = new Map();
@@ -141,6 +142,7 @@ function FlatMapView({
   hasLocation,
   focusBounds,
   journeyPaths = [],
+  highlightedMemoryIds = new Set(),
   navigationRequest = null,
   onRouteComputed,
 }) {
@@ -280,6 +282,12 @@ function FlatMapView({
     }
   }, [userLocation, mapReady]);
 
+  const highlightedIds = useMemo(() => {
+    if (!highlightedMemoryIds) return new Set();
+    const list = highlightedMemoryIds instanceof Set ? Array.from(highlightedMemoryIds) : highlightedMemoryIds;
+    return new Set(list.map((id) => String(id)));
+  }, [highlightedMemoryIds]);
+
   const displayGroups = useMemo(() => {
     const zoom = mapRef.current?.getZoom() ?? BASE_ZOOM_FOR_SCALING;
     const scale = Math.pow(2, (BASE_ZOOM_FOR_SCALING - zoom) * ZOOM_SCALE_EXPONENT);
@@ -365,7 +373,10 @@ function FlatMapView({
           : `Unlocked ${group.memories[0].timesFound} times\nLast: ${formatRelative(
               group.memories[0].lastUnlockedAt,
             )}`;
-      const variant = getGroupMediaVariant(group.memories);
+      const isJourneyMemory = group.memories.some((memory) =>
+        highlightedIds.has(String(memory.id)),
+      );
+      const variant = isJourneyMemory ? 'journey' : getGroupMediaVariant(group.memories);
       const marker = new google.maps.Marker({
         position: latLng,
         map,
@@ -389,12 +400,14 @@ function FlatMapView({
       circle.addListener('click', () => onSelectGroup?.(group));
       memoryCirclesRef.current.push(circle);
     });
-  }, [mapReady, displayGroups, onSelectGroup]);
+  }, [mapReady, displayGroups, onSelectGroup, highlightedIds]);
 
   useEffect(() => {
     if (!mapReady || !googleRef.current || !mapRef.current) return;
     clearOverlays(journeysLayerRef);
-    if (!journeyPaths?.length) return;
+
+    // Temporarily disable drawing journey connector polylines.
+    return;
 
     const google = googleRef.current;
     const map = mapRef.current;
@@ -506,52 +519,135 @@ function FlatMapView({
       return;
     }
 
-    service.route(
-      {
-        origin,
-        destination,
-        waypoints: navigationRequest.waypoints || [],
-        travelMode: mode,
-        provideRouteAlternatives: false,
-      },
-      (result, status) => {
-        if (status !== 'OK' || !result?.routes?.length) {
+    const points = [
+      origin,
+      ...(navigationRequest.waypoints || []).map((wp) => wp.location || wp).filter(Boolean),
+      destination,
+    ]
+      .map((pt) => ({
+        lat: Number(pt.lat),
+        lng: Number(pt.lng),
+      }))
+      .filter((pt) => Number.isFinite(pt.lat) && Number.isFinite(pt.lng));
+
+    if (points.length < 2) {
+      onRouteComputed?.(null);
+      return;
+    }
+
+    const chunkSize = 25; // origin + 23 waypoints + destination
+    const segments = [];
+    for (let i = 0; i < points.length - 1; i += chunkSize - 1) {
+      const slice = points.slice(i, i + chunkSize);
+      if (slice.length < 2) continue;
+      segments.push({
+        origin: slice[0],
+        destination: slice[slice.length - 1],
+        waypoints: slice.slice(1, -1).map((pt) => ({ location: pt, stopover: false })),
+      });
+    }
+
+    const runRoute = (req) =>
+      new Promise((resolve) => {
+        service.route(
+          {
+            origin: req.origin,
+            destination: req.destination,
+            waypoints: req.waypoints,
+            travelMode: mode,
+            provideRouteAlternatives: false,
+            optimizeWaypoints: false,
+          },
+          (result, status) => {
+            if (status === 'OK' && result?.routes?.length) {
+              resolve(result.routes[0]);
+            } else {
+              resolve(null);
+            }
+          },
+        );
+      });
+
+    const formatDistance = (meters = 0) => {
+      if (!Number.isFinite(meters)) return '';
+      if (meters >= 1000) return `${(meters / 1000).toFixed(1)} km`;
+      return `${Math.round(meters)} m`;
+    };
+
+    const formatDuration = (seconds = 0) => {
+      if (!Number.isFinite(seconds)) return '';
+      const minutes = Math.round(seconds / 60);
+      if (minutes >= 60) {
+        const hours = Math.floor(minutes / 60);
+        const mins = minutes % 60;
+        return mins ? `${hours}h ${mins}m` : `${hours}h`;
+      }
+      return `${minutes}m`;
+    };
+
+    (async () => {
+      const allPaths = [];
+      let totalDistance = 0;
+      let totalDuration = 0;
+      let startPos = null;
+      let endPos = null;
+
+      for (const seg of segments) {
+        const route = await runRoute(seg);
+        if (!route) {
           onRouteComputed?.(null);
           return;
         }
-        const route = result.routes[0];
         const leg = route.legs?.[0];
-        const polyline = new google.maps.Polyline({
-          map,
-          path: route.overview_path,
-          strokeColor: '#2563eb',
-          strokeOpacity: 0.9,
-          strokeWeight: 7,
-          geodesic: true,
-        });
-        const startMarker = new google.maps.Marker({
-          map,
-          position: leg?.start_location || route.overview_path[0],
-          title: 'Start',
-        });
-        const endMarker = new google.maps.Marker({
-          map,
-          position: leg?.end_location || route.overview_path[route.overview_path.length - 1],
-          title: 'Destination',
-        });
-        directionsLayerRef.current = [polyline, startMarker, endMarker];
+        totalDistance += leg?.distance?.value || 0;
+        totalDuration += leg?.duration?.value || 0;
+        const segPath = route.overview_path || [];
+        if (segPath.length) {
+          if (!startPos) startPos = segPath[0];
+          endPos = segPath[segPath.length - 1];
+          if (allPaths.length) {
+            allPaths.push(...segPath.slice(1));
+          } else {
+            allPaths.push(...segPath);
+          }
+        }
+      }
 
-        const bounds = new google.maps.LatLngBounds();
-        route.overview_path.forEach((pt) => bounds.extend(pt));
-        map.fitBounds(bounds, { top: 80, right: 80, bottom: 80, left: 80 });
+      if (!allPaths.length) {
+        onRouteComputed?.(null);
+        return;
+      }
 
-        onRouteComputed?.({
-          distanceText: leg?.distance?.text || '',
-          durationText: leg?.duration?.text || '',
-          mode: navigationRequest.mode || 'DRIVING',
-        });
-      },
-    );
+      const polyline = new google.maps.Polyline({
+        map,
+        path: allPaths,
+        strokeColor: '#2563eb',
+        strokeOpacity: 0.9,
+        strokeWeight: 7,
+        geodesic: true,
+      });
+      const startMarker = new google.maps.Marker({
+        map,
+        position: startPos || allPaths[0],
+        title: 'Start',
+      });
+      const endMarker = new google.maps.Marker({
+        map,
+        position: endPos || allPaths[allPaths.length - 1],
+        title: 'Destination',
+      });
+      directionsLayerRef.current = [polyline, startMarker, endMarker];
+
+      const bounds = new google.maps.LatLngBounds();
+      allPaths.forEach((pt) => bounds.extend(pt));
+      map.fitBounds(bounds, { top: 80, right: 80, bottom: 80, left: 80 });
+
+      onRouteComputed?.({
+        distanceText: formatDistance(totalDistance),
+        durationText: formatDuration(totalDuration),
+        mode: navigationRequest.mode || 'DRIVING',
+      });
+    })();
 
     return () => {
       clearDirections();
@@ -601,6 +697,7 @@ function MapView({
   onSelectGroup,
   focusBounds,
   journeyPaths,
+  highlightedMemoryIds,
   navigationRequest = null,
   onRouteComputed,
 }) {
@@ -617,6 +714,7 @@ function MapView({
         hasLocation={hasLocation}
         focusBounds={focusBounds}
         journeyPaths={journeyPaths}
+        highlightedMemoryIds={highlightedMemoryIds}
         navigationRequest={navigationRequest}
         onRouteComputed={onRouteComputed}
       />

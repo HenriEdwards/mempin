@@ -20,6 +20,9 @@ function UserProfilePanel({
   journeyMemories = {},
   journeyVisibilityMap = {},
   onOpenJourneyPanel,
+  defaultJourneyId = null,
+  defaultJourneyScroll = 0,
+  onJourneyViewChange,
 }) {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -81,6 +84,12 @@ function UserProfilePanel({
             onOpenJourneyPanel={onOpenJourneyPanel}
             followingTabProps={{ hideSuggestions: true, profileHandle: profile?.handle || '' }}
             showSaved={false}
+            avatarUrl={profile?.avatarUrl || ''}
+            displayName={profile?.name || ''}
+            showProfileHeader={false}
+            defaultJourneyId={defaultJourneyId}
+            defaultJourneyScroll={defaultJourneyScroll}
+            onJourneyViewChange={onJourneyViewChange}
           />
         </>
       )}
