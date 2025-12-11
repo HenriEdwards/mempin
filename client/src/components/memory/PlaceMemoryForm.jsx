@@ -4,6 +4,7 @@ import TextArea from '../ui/TextArea.jsx';
 import Select from '../ui/Select.jsx';
 import Button from '../ui/Button.jsx';
 import api from '../../services/api.js';
+import { normalizeHandle } from '../../utils/handles.js';
 
 const VISIBILITY_OPTIONS = [
   { value: 'public', label: 'Public' },
@@ -22,7 +23,6 @@ const EXPIRY_PRESETS = [
 const defaultFormState = {
   title: '',
   shortDescription: '',
-  body: '',
   tags: '',
   targetHandles: '',
   visibility: 'public',
@@ -31,13 +31,49 @@ const defaultFormState = {
   journeyStep: 1,
   newJourneyTitle: '',
   newJourneyDescription: '',
+  createJourney: false,
+  completeJourney: false,
   expiryMode: 'forever', // preset | custom | forever
   expiryPreset: EXPIRY_PRESETS[0].value,
   customExpiry: '',
-  unlockMethod: 'location', // location | passcode | followers
+  unlockRequiresLocation: true,
+  unlockRequiresFollowers: false,
+  unlockRequiresPasscode: false,
   unlockPasscode: '',
+  unlockNone: false,
   unlockAvailableFrom: '',
 };
+
+function mapLegacyUnlockMethod(method = 'location') {
+  const value = String(method || '').toLowerCase();
+  switch (value) {
+    case 'none':
+      return {
+        unlockRequiresLocation: false,
+        unlockRequiresFollowers: false,
+        unlockRequiresPasscode: false,
+      };
+    case 'followers':
+      return {
+        unlockRequiresLocation: false,
+        unlockRequiresFollowers: true,
+        unlockRequiresPasscode: false,
+      };
+    case 'passcode':
+      return {
+        unlockRequiresLocation: false,
+        unlockRequiresFollowers: false,
+        unlockRequiresPasscode: true,
+      };
+    case 'location':
+    default:
+      return {
+        unlockRequiresLocation: true,
+        unlockRequiresFollowers: false,
+        unlockRequiresPasscode: false,
+      };
+  }
+}
 
 function PlaceMemoryForm({
   coords,
@@ -48,10 +84,30 @@ function PlaceMemoryForm({
   initialFormState = null,
   onPersistDraft = null,
 }) {
-  const [form, setForm] = useState(() => ({
-    ...defaultFormState,
-    ...(initialFormState || {}),
-  }));
+  const [form, setForm] = useState(() => {
+    const merged = { ...defaultFormState, ...(initialFormState || {}) };
+    if (initialFormState?.unlockMethod && !initialFormState.unlockRequiresLocation && !initialFormState.unlockRequiresFollowers && !initialFormState.unlockRequiresPasscode) {
+      const legacy = mapLegacyUnlockMethod(initialFormState.unlockMethod);
+      return { ...merged, ...legacy };
+    }
+    if (merged.newJourneyTitle || merged.newJourneyDescription) {
+      merged.createJourney = true;
+      merged.journeyId = '';
+    }
+    if (!merged.journeyId) {
+      merged.completeJourney = false;
+    }
+    return merged;
+  });
+  const [targetInput, setTargetInput] = useState('');
+  const [targetHandles, setTargetHandles] = useState(() => {
+    const raw = initialFormState?.targetHandles || '';
+    return raw
+      .split(',')
+      .map((val) => normalizeHandle(val))
+      .filter(Boolean);
+  });
+  const [targetSuggestions, setTargetSuggestions] = useState([]);
   const [journeys, setJourneys] = useState([]);
   const [images, setImages] = useState([]);
   const [imagePreviews, setImagePreviews] = useState([]);
@@ -66,6 +122,33 @@ function PlaceMemoryForm({
       .getJourneys()
       .then((data) => setJourneys(data.journeys || []))
       .catch(() => {});
+    const loadSuggestions = async () => {
+      try {
+        const [suggestionsRes, followersRes] = await Promise.allSettled([
+          api.getFollowerSuggestions(),
+          api.getFollowers(),
+        ]);
+        const bucket = new Map();
+        if (suggestionsRes.status === 'fulfilled') {
+          (suggestionsRes.value?.suggestions || []).forEach((item) => {
+            const handle = normalizeHandle(item.handle || '');
+            if (handle && !bucket.has(handle)) bucket.set(handle, { handle, name: item.name || '' });
+          });
+        }
+        if (followersRes.status === 'fulfilled') {
+          const following = followersRes.value?.following || [];
+          const followers = followersRes.value?.followers || [];
+          [...following, ...followers].forEach((item) => {
+            const handle = normalizeHandle(item.handle || item.username || '');
+            if (handle && !bucket.has(handle)) bucket.set(handle, { handle, name: item.name || '' });
+          });
+        }
+        setTargetSuggestions(Array.from(bucket.values()));
+      } catch {
+        setTargetSuggestions([]);
+      }
+    };
+    loadSuggestions();
   }, []);
 
   useEffect(
@@ -81,6 +164,29 @@ function PlaceMemoryForm({
       onPersistDraft?.(next);
       return next;
     });
+  };
+
+  const noneSelected = form.unlockNone;
+
+  const syncTargetHandles = (list) => {
+    const unique = Array.from(new Set(list));
+    setTargetHandles(unique);
+    persistForm((prev) => ({ ...prev, targetHandles: unique.join(',') }));
+  };
+
+  const addTargetHandle = (value) => {
+    const normalized = normalizeHandle(value);
+    if (!normalized) return;
+    if (targetHandles.includes(normalized)) {
+      setTargetInput('');
+      return;
+    }
+    syncTargetHandles([...targetHandles, normalized]);
+    setTargetInput('');
+  };
+
+  const removeTargetHandle = (value) => {
+    syncTargetHandles(targetHandles.filter((item) => item !== value));
   };
 
   const updateField = (name, value) => {
@@ -101,22 +207,42 @@ function PlaceMemoryForm({
     updateField('tags', next.join(','));
   };
 
-  const handleJourneyChange = (event) => {
-    const value = event.target.value;
+  const handleJourneySelect = (journeyId) => {
     persistForm((prev) => {
-      const base = { ...prev, journeyId: value };
-      if (!value) {
-        return {
-          ...base,
-          journeyStep: 1,
-          newJourneyTitle: '',
-          newJourneyDescription: '',
-        };
-      }
-      const journey = journeys.find((item) => String(item.id) === String(value));
+      const journey = journeys.find((item) => String(item.id) === String(journeyId));
       const nextStep = (Number(journey?.stepCount) || 0) + 1;
-      return { ...base, journeyStep: nextStep };
+      return {
+        ...prev,
+        journeyId,
+        createJourney: false,
+        newJourneyTitle: '',
+        newJourneyDescription: '',
+        completeJourney: false,
+        journeyStep: nextStep,
+      };
     });
+  };
+
+const handleCreateJourneySelect = () => {
+  persistForm((prev) => ({
+    ...prev,
+    journeyId: '',
+    createJourney: true,
+    completeJourney: false,
+    journeyStep: 1,
+  }));
+};
+
+  const handleJourneyNone = () => {
+    persistForm((prev) => ({
+      ...prev,
+      journeyId: '',
+      createJourney: false,
+      newJourneyTitle: '',
+      newJourneyDescription: '',
+      completeJourney: false,
+      journeyStep: 1,
+    }));
   };
 
   const handleMediaFiles = (files = []) => {
@@ -152,7 +278,7 @@ function PlaceMemoryForm({
   const handleSubmit = (event) => {
     event.preventDefault();
     if (!coords) return;
-    if (form.unlockMethod === 'passcode' && form.unlockPasscode.trim().length < 4) {
+    if (!form.unlockNone && form.unlockRequiresPasscode && form.unlockPasscode.trim().length < 4) {
       setUnlockError('Passcode must be at least 4 characters.');
       return;
     }
@@ -185,15 +311,35 @@ function PlaceMemoryForm({
     const payload = new FormData();
     payload.append('title', form.title.trim());
     payload.append('shortDescription', form.shortDescription.trim());
-    payload.append('body', form.body.trim());
     payload.append('tags', form.tags);
-    payload.append('targetHandles', form.targetHandles);
+    payload.append('targetHandles', targetHandles.join(','));
+    payload.append('completeJourney', String(form.completeJourney && (form.createJourney || form.journeyId)));
     payload.append('visibility', form.visibility);
     payload.append('radiusM', String(form.radiusM));
     payload.append('latitude', coords.latitude);
     payload.append('longitude', coords.longitude);
-    payload.append('unlockMethod', form.unlockMethod);
-    if (form.unlockMethod === 'passcode') {
+    const determineLegacyMethod = () => {
+      if (form.unlockNone) return 'none';
+      const flags = [
+        form.unlockRequiresLocation,
+        form.unlockRequiresFollowers,
+        form.unlockRequiresPasscode,
+      ].filter(Boolean).length;
+      if (flags === 0) return 'none';
+      if (flags === 1) {
+        if (form.unlockRequiresLocation) return 'location';
+        if (form.unlockRequiresFollowers) return 'followers';
+        if (form.unlockRequiresPasscode) return 'passcode';
+      }
+      return 'custom';
+    };
+
+    payload.append('unlockMethod', determineLegacyMethod());
+    payload.append('unlockRequiresLocation', String(form.unlockNone ? false : form.unlockRequiresLocation));
+    payload.append('unlockRequiresFollowers', String(form.unlockNone ? false : form.unlockRequiresFollowers));
+    payload.append('unlockRequiresPasscode', String(form.unlockNone ? false : form.unlockRequiresPasscode));
+
+    if (!form.unlockNone && form.unlockRequiresPasscode) {
       payload.append('unlockPasscode', form.unlockPasscode.trim());
     }
     if (form.unlockAvailableFrom) {
@@ -206,7 +352,7 @@ function PlaceMemoryForm({
       payload.append('journeyId', form.journeyId);
       payload.append('journeyStep', form.journeyStep);
     }
-    if (form.newJourneyTitle) {
+    if (form.createJourney && form.newJourneyTitle) {
       payload.append('newJourneyTitle', form.newJourneyTitle);
       payload.append('newJourneyDescription', form.newJourneyDescription);
       payload.append('journeyStep', form.journeyStep);
@@ -247,16 +393,6 @@ function PlaceMemoryForm({
           />
           <span>{form.shortDescription.length}/120</span>
         </div>
-        <div className="field with-counter">
-          <TextArea
-            label="Story"
-            value={form.body}
-            maxLength={800}
-            placeholder="Tell the story..."
-            onChange={(event) => updateField('body', event.target.value)}
-          />
-          <span>{form.body.length}/800</span>
-        </div>
         <div className="field">
           <Input
             label="Tags"
@@ -283,81 +419,178 @@ function PlaceMemoryForm({
           )}
         </div>
         <div className="field">
-          <label>Unlock method</label>
-          <div className="unlock-options">
-            <label className={`unlock-option ${form.unlockMethod === 'none' ? 'active' : ''}`}>
+          <label className="unlock-label-row">
+            <span>Unlock requirements (stackable)</span>
+            <label className={`unlock-option unlock-option--inline ${noneSelected ? 'active' : ''}`}>
               <input
-                type="radio"
-                name="unlockMethod"
-                value="none"
-                checked={form.unlockMethod === 'none'}
+                type="checkbox"
+                name="unlockNone"
+                checked={noneSelected}
                 onChange={() => {
                   setUnlockError('');
-                  persistForm((prev) => ({ ...prev, unlockMethod: 'none', unlockPasscode: '' }));
+                  persistForm((prev) => ({
+                    ...prev,
+                    unlockNone: !prev.unlockNone,
+                    unlockRequiresLocation: false,
+                    unlockRequiresFollowers: false,
+                    unlockRequiresPasscode: false,
+                    unlockPasscode: '',
+                  }));
                 }}
               />
-              <span>None (instant)</span>
+              <span>None</span>
             </label>
-            <label className={`unlock-option ${form.unlockMethod === 'location' ? 'active' : ''}`}>
-              <input
-                type="radio"
-                name="unlockMethod"
-                value="location"
-                checked={form.unlockMethod === 'location'}
-                onChange={() => {
-                  setUnlockError('');
-                  persistForm((prev) => ({ ...prev, unlockMethod: 'location', unlockPasscode: '' }));
-                }}
-              />
-              <span>Within radius</span>
+          </label>
+          <div className="unlock-options unlock-options--checkbox">
+            <label className={`unlock-option ${form.unlockRequiresLocation ? 'active' : ''} ${noneSelected ? 'disabled' : ''}`}>
+              <div className="unlock-option__header">
+                <input
+                  type="checkbox"
+                  name="unlockRequiresLocation"
+                  checked={form.unlockRequiresLocation}
+                  disabled={noneSelected}
+                  onChange={(event) => {
+                    setUnlockError('');
+                    const next = event.target.checked;
+                    persistForm((prev) => ({ ...prev, unlockRequiresLocation: next, unlockNone: false }));
+                  }}
+                />
+                <span>Within radius</span>
+              </div>
+              <div className="unlock-option__control">
+                <input
+                  className="slider slider--inline"
+                  type="range"
+                  min={20}
+                  max={200}
+                  step={5}
+                  value={form.radiusM}
+                  disabled={!form.unlockRequiresLocation || noneSelected}
+                  onChange={(event) => updateField('radiusM', Number(event.target.value))}
+                />
+                <span className="chip chip--inline">{form.radiusM} m</span>
+              </div>
             </label>
-            <label className={`unlock-option ${form.unlockMethod === 'followers' ? 'active' : ''}`}>
-              <input
-                type="radio"
-                name="unlockMethod"
-                value="followers"
-                checked={form.unlockMethod === 'followers'}
-                onChange={() => {
-                  setUnlockError('');
-                  persistForm((prev) => ({ ...prev, unlockMethod: 'followers', unlockPasscode: '' }));
-                }}
-              />
-              <span>Must follow you</span>
+            <label className={`unlock-option ${form.unlockRequiresPasscode ? 'active' : ''} ${noneSelected ? 'disabled' : ''}`}>
+              <div className="unlock-option__header">
+                <input
+                  type="checkbox"
+                  name="unlockRequiresPasscode"
+                  checked={form.unlockRequiresPasscode}
+                  disabled={noneSelected}
+                  onChange={(event) => {
+                    const next = event.target.checked;
+                    setUnlockError('');
+                    persistForm((prev) => ({
+                      ...prev,
+                      unlockNone: false,
+                      unlockRequiresPasscode: next,
+                      unlockPasscode: next ? prev.unlockPasscode : '',
+                    }));
+                  }}
+                />
+                <span>Passcode</span>
+              </div>
+              {form.unlockRequiresPasscode && !noneSelected && (
+                <div className="unlock-option__control unlock-option__control--passcode">
+                  <Input
+                    label=""
+                    value={form.unlockPasscode}
+                    onChange={(event) => {
+                      setUnlockError('');
+                      updateField('unlockPasscode', event.target.value);
+                    }}
+                    placeholder="Enter passcode"
+                  />
+                </div>
+              )}
             </label>
-            <label className={`unlock-option ${form.unlockMethod === 'passcode' ? 'active' : ''}`}>
-              <input
-                type="radio"
-                name="unlockMethod"
-                value="passcode"
-                checked={form.unlockMethod === 'passcode'}
-                onChange={() => {
-                  setUnlockError('');
-                  persistForm((prev) => ({ ...prev, unlockMethod: 'passcode' }));
-                }}
-              />
-              <span>Passcode</span>
+            <label className={`unlock-option ${form.unlockRequiresFollowers ? 'active' : ''} ${noneSelected ? 'disabled' : ''}`}>
+              <div className="unlock-option__header">
+                <input
+                  type="checkbox"
+                  name="unlockRequiresFollowers"
+                  checked={form.unlockRequiresFollowers}
+                  disabled={noneSelected}
+                  onChange={(event) => {
+                    setUnlockError('');
+                    const next = event.target.checked;
+                    persistForm((prev) => ({ ...prev, unlockRequiresFollowers: next, unlockNone: false }));
+                  }}
+                />
+                <span>Must follow you</span>
+              </div>
             </label>
           </div>
-          {form.unlockMethod === 'passcode' && (
-            <Input
-              label="Unlock passcode"
-              value={form.unlockPasscode}
-              onChange={(event) => {
-                setUnlockError('');
-                updateField('unlockPasscode', event.target.value);
-              }}
-              placeholder="Enter passcode"
-            />
-          )}
           {unlockError && <p className="input-error" style={{ marginTop: '0.35rem' }}>{unlockError}</p>}
         </div>
         <div className="field">
-          <Input
-            label="Targeted recipients (handles)"
-            value={form.targetHandles}
-            placeholder="@friend, another_friend"
-            onChange={(event) => updateField('targetHandles', event.target.value)}
-          />
+          <label>Targeted recipients (handles)</label>
+          <div className="chips-input">
+            <div className="chips-input__selected">
+              {targetHandles.map((handle) => (
+                <span key={handle} className="chip chip--clickable chips-input__chip">
+                  @{handle}
+                  <button
+                    type="button"
+                    className="chips-input__remove"
+                    onClick={() => removeTargetHandle(handle)}
+                    aria-label={`Remove ${handle}`}
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+              <input
+                type="text"
+                value={targetInput}
+                onChange={(event) => setTargetInput(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ',') {
+                    event.preventDefault();
+                    addTargetHandle(targetInput);
+                  }
+                }}
+                placeholder={targetHandles.length ? 'Add another…' : '@friend'}
+                className="chips-input__field"
+              />
+            </div>
+            {targetInput.trim() && (
+              <div className="chips-input__suggestions">
+                {(() => {
+                  const filtered = targetSuggestions
+                    .filter((item) => {
+                      const handle = normalizeHandle(item.handle || '');
+                      if (!handle) return false;
+                      if (targetHandles.includes(handle)) return false;
+                      return handle.includes(normalizeHandle(targetInput));
+                    })
+                    .slice(0, 6);
+                  if (!filtered.length) {
+                    return (
+                      <div className="chips-input__suggestion chips-input__suggestion--empty">
+                        No matches
+                      </div>
+                    );
+                  }
+                  return filtered.map((item) => {
+                    const handle = normalizeHandle(item.handle || '');
+                    return (
+                      <button
+                        type="button"
+                        key={handle}
+                        className="chips-input__suggestion"
+                        onClick={() => addTargetHandle(handle)}
+                      >
+                        @{handle}
+                        {item.name ? <span className="muted"> — {item.name}</span> : null}
+                      </button>
+                    );
+                  });
+                })()}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -381,25 +614,7 @@ function PlaceMemoryForm({
             onChange={(event) => updateField('unlockAvailableFrom', event.target.value)}
           />
         </div>
-        <div className="field">
-          <label title="How close someone must be to unlock">Radius</label>
-          <input
-            className="slider"
-            type="range"
-            min={20}
-            max={200}
-            step={5}
-            value={form.radiusM}
-            disabled={form.unlockMethod !== 'location'}
-            onChange={(event) => updateField('radiusM', Number(event.target.value))}
-          />
-          <div className="slider-marks">
-            {RADIUS_MARKS.map((mark) => (
-              <span key={mark}>{mark}m</span>
-            ))}
-          </div>
-          <span className="chip">{form.radiusM} meters</span>
-        </div>
+
         <div className="field">
           <label>Expiry</label>
           <div className="chip-group">
@@ -455,42 +670,74 @@ function PlaceMemoryForm({
           {expiryError && <p className="input-error" style={{ marginTop: '0.4rem' }}>{expiryError}</p>}
         </div>
         <div className="field">
-          <label>Journey</label>
-          <Select
-            value={form.journeyId}
-            onChange={handleJourneyChange}
-          >
-            <option value="">No journey</option>
-            {journeys.map((journey) => (
-              <option key={journey.id} value={journey.id}>
-                {journey.title} ({journey.stepCount} steps)
-              </option>
+          <div className="journey-label-row">
+            <label>Journey</label>
+          </div>
+          <div className="journey-options">
+            <button
+              type="button"
+              className={`journey-option ${form.createJourney ? 'journey-option--active' : ''}`}
+              onClick={() => {
+                if (form.createJourney) {
+                  handleJourneyNone();
+                } else {
+                  handleCreateJourneySelect();
+                }
+              }}
+            >
+              {form.createJourney ? '- New journey' : '+ New journey'}
+            </button>
+            {journeys
+              .filter((journey) => !journey.completed)
+              .map((journey) => (
+              <button
+                key={journey.id}
+                type="button"
+                className={`journey-option ${form.journeyId === String(journey.id) ? 'journey-option--active' : ''}`}
+                onClick={() => handleJourneySelect(String(journey.id))}
+                disabled={form.createJourney}
+                title={`${journey.title} (${journey.stepCount || 0} steps)`}
+              >
+                {journey.title}
+                <span className="journey-option__meta">{journey.stepCount || 0} steps</span>
+              </button>
             ))}
-          </Select>
-          <Input
-            label="New journey title"
-            value={form.newJourneyTitle}
-            onChange={(event) => updateField('newJourneyTitle', event.target.value)}
-            placeholder="Leave blank to use existing"
-            disabled={Boolean(form.journeyId)}
-          />
-          <TextArea
-            label="New journey description"
-            value={form.newJourneyDescription}
-            onChange={(event) => updateField('newJourneyDescription', event.target.value)}
-            disabled={Boolean(form.journeyId)}
-          />
-          {(form.journeyId || form.newJourneyTitle) && (
-            <Input
-              label="Journey step"
-              type="number"
-              min={1}
-              value={form.journeyStep}
-            onChange={(event) =>
-              updateField('journeyStep', Math.max(1, Number(event.target.value)))
-            }
-          />
-        )}
+          </div>
+          {form.createJourney && (
+            <div className="journey-new-fields">
+              <Input
+                label="New journey title"
+                value={form.newJourneyTitle}
+                onChange={(event) => updateField('newJourneyTitle', event.target.value)}
+                placeholder="Name your journey"
+              />
+              <TextArea
+                label="New journey description"
+                value={form.newJourneyDescription}
+                onChange={(event) => updateField('newJourneyDescription', event.target.value)}
+              />
+            </div>
+          )}
+          {(form.journeyId || form.createJourney) && (
+            <div className="journey-step-row">
+              <div className="journey-step-display">
+                <span className="chip chip--inline">Step {form.journeyStep || 1}</span>
+              </div>
+              <label className="journey-complete">
+                <input
+                  type="checkbox"
+                  checked={form.completeJourney}
+                  onChange={(event) =>
+                    persistForm((prev) => ({
+                      ...prev,
+                      completeJourney: event.target.checked,
+                    }))
+                  }
+                />
+                <span>Final step</span>
+              </label>
+            </div>
+          )}
         </div>
         <div
           className="media-dropzone"

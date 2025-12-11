@@ -160,18 +160,17 @@ function ProfileFollowingTab({ isActive, openProfile, hideSuggestions = false, p
               className="friends-item__inner friends-item--clickable"
               onClick={() => openProfile?.(friend.handle, { isFollowing: friend.isFollowing })}
             >
+              <div className="friends-item__avatar" aria-hidden="true">
+                {friend.avatarUrl ? (
+                  <img src={friend.avatarUrl} alt="" referrerPolicy="no-referrer" />
+                ) : (
+                  <span>{(friend.name || friend.handle || '?').charAt(0).toUpperCase()}</span>
+                )}
+              </div>
               <div className="friends-item__meta">
-                {/* <p className="friends-item__name">
-                  {friend.name || friend.handle || friend.email}
-                </p> */}
                 <p className="friends-item__handle">
                   {friend.handle ? `@${friend.handle}` : friend.email}
                 </p>
-              </div>
-              <div className="friends-item__stats">
-                <span className="friends-item__pill">
-                  {(friend.memoryCount ?? 0).toLocaleString()} memories
-                </span>
               </div>
             </button>
             <Button
@@ -214,25 +213,20 @@ function ProfileFollowingTab({ isActive, openProfile, hideSuggestions = false, p
                   if (event.key === 'Enter') openProfile?.(suggestion.handle);
                 }}
               >
-                <div className="friends-item__inner">
-                  <div className="friends-item__meta">
-                    {/* <p className="friends-item__name">
-                      {suggestion.name || suggestion.handle || suggestion.email}
-                    </p> */}
-                    <p className="friends-item__handle">
-                      {suggestion.handle ? `@${suggestion.handle}` : suggestion.email}
-                      {/* {suggestion.email && suggestion.handle ? ` • ${suggestion.email}` : ''} */}
-                      {suggestion.followerCount
-                        ? ` • ${suggestion.followerCount} follower${suggestion.followerCount === 1 ? '' : 's'}`
-                        : ''}
-                    </p>
-                  </div>
-                  <div className="friends-item__stats">
-                    <span className="friends-item__pill">
-                      {(suggestion.memoryCount ?? 0).toLocaleString()} memories
-                    </span>
-                  </div>
+              <div className="friends-item__inner">
+                <div className="friends-item__avatar" aria-hidden="true">
+                  {suggestion.avatarUrl ? (
+                    <img src={suggestion.avatarUrl} alt="" referrerPolicy="no-referrer" />
+                  ) : (
+                    <span>{(suggestion.name || suggestion.handle || '?').charAt(0).toUpperCase()}</span>
+                  )}
                 </div>
+                <div className="friends-item__meta">
+                  <p className="friends-item__handle">
+                    {suggestion.handle ? `@${suggestion.handle}` : suggestion.email}
+                  </p>
+                </div>
+              </div>
 
                 <Button
                   variant="primary"

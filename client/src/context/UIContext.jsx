@@ -37,6 +37,7 @@ const UIContext = createContext({
   openFollowingPanel: () => {},
   openSocialPanel: () => {},
   openMemoryDetailsPanel: () => {},
+  openLockedMemoryPanel: () => {},
   openClusterPanel: () => {},
   openCreateMemoryPanel: () => {},
   openPricingPanel: () => {},
@@ -163,6 +164,18 @@ export function UIProvider({ children }) {
     });
   }, []);
 
+  const openLockedMemoryPanel = useCallback((payload, options = {}) => {
+    setPanels((prev) => {
+      if (options.pushHistory) {
+        setRightHistory((history) => [...history, prev.right]);
+      }
+      return {
+        ...prev,
+        right: { view: 'lockedMemory', payload },
+      };
+    });
+  }, []);
+
   const openCreateMemoryPanel = useCallback(() => {
     setPanels((prev) => ({ ...prev, center: { view: 'newMemory', payload: null } }));
   }, []);
@@ -232,6 +245,7 @@ export function UIProvider({ children }) {
       openFollowingPanel,
       openSocialPanel,
       openMemoryDetailsPanel,
+      openLockedMemoryPanel,
       openClusterPanel,
       openCreateMemoryPanel,
       openPricingPanel,
@@ -255,6 +269,7 @@ export function UIProvider({ children }) {
       openFollowingPanel,
       openSocialPanel,
       openMemoryDetailsPanel,
+      openLockedMemoryPanel,
       openClusterPanel,
       openCreateMemoryPanel,
       openPricingPanel,

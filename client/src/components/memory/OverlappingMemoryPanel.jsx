@@ -2,9 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Input from '../ui/Input.jsx';
 
 function MemoryRow({ memory, onSelect }) {
-  const snippet = memory.body
-    ? `${memory.body.slice(0, 120)}${memory.body.length > 120 ? '...' : ''}`
-    : 'No description yet.';
+  const snippet = memory.shortDescription || 'No description yet.';
 
   return (
     <button

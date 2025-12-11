@@ -85,6 +85,13 @@ function ProfileFollowersTab({ isActive, openProfile, profileHandle, hideSuggest
               className="friends-item__inner friends-item--clickable"
               onClick={() => openProfile?.(friend.handle, { isFollowing: friend.isFollowing })}
             >
+              <div className="friends-item__avatar" aria-hidden="true">
+                {friend.avatarUrl ? (
+                  <img src={friend.avatarUrl} alt="" referrerPolicy="no-referrer" />
+                ) : (
+                  <span>{(friend.name || friend.handle || '?').charAt(0).toUpperCase()}</span>
+                )}
+              </div>
               <div className="friends-item__meta">
                 <p className="friends-item__handle">
                   {friend.handle ? `@${friend.handle}` : friend.email}

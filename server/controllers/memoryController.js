@@ -34,6 +34,15 @@ function parseNumber(value) {
   return Number.isNaN(parsed) ? null : parsed;
 }
 
+function parseBoolFlag(value, fallback = false) {
+  if (typeof value === 'boolean') return value;
+  if (value === undefined || value === null) return fallback;
+  const normalized = String(value).toLowerCase();
+  if (['true', '1', 'yes', 'on'].includes(normalized)) return true;
+  if (['false', '0', 'no', 'off'].includes(normalized)) return false;
+  return fallback;
+}
+
 function getUploadedFilesCollection(filesInput) {
   if (!filesInput) {
     return [];
@@ -136,10 +145,10 @@ async function attachAssetsToMemory(memory) {
 
 const createMemory = [
   memoryAssetUpload.fields([
-    { name: 'images', maxCount: 5 },
-    { name: 'audio', maxCount: 2 },
-    { name: 'video', maxCount: 2 },
-    { name: 'assets', maxCount: 8 },
+    { name: 'images', maxCount: 20 },
+    { name: 'audio', maxCount: 10 },
+    { name: 'video', maxCount: 10 },
+    { name: 'assets', maxCount: 30 },
   ]),
   asyncHandler(async (req, res) => {
     const latitude = parseNumber(req.body.latitude);
@@ -152,7 +161,6 @@ const createMemory = [
     const shortDescription = req.body.shortDescription
       ? String(req.body.shortDescription).trim().slice(0, 100)
       : null;
-    const body = req.body.body ? String(req.body.body).trim() : null;
     const tags = parseTagsInput(req.body.tags);
     const targetHandles = parseCommaList(req.body.targetHandles).map((handle) =>
       normalizeHandle(handle),
@@ -163,14 +171,38 @@ const createMemory = [
     const newJourneyDescription = req.body.newJourneyDescription
       ? String(req.body.newJourneyDescription).trim()
       : '';
+    const completeJourney = parseBoolFlag(req.body.completeJourney, false);
     const expiresAt =
       req.body.expiresAt && String(req.body.expiresAt).trim()
         ? new Date(req.body.expiresAt)
         : null;
-    const unlockMethod = String(req.body.unlockMethod || 'location').toLowerCase();
-    let unlockRequiresLocation = unlockMethod === 'location';
-    let unlockRequiresFollowers = unlockMethod === 'followers';
-    let unlockRequiresPasscode = unlockMethod === 'passcode';
+    const unlockMethod = String(req.body.unlockMethod || '').toLowerCase();
+    const legacyFromMethod = (() => {
+      switch (unlockMethod) {
+        case 'none':
+          return { location: false, followers: false, passcode: false };
+        case 'followers':
+          return { location: false, followers: true, passcode: false };
+        case 'passcode':
+          return { location: false, followers: false, passcode: true };
+        case 'location':
+        default:
+          return { location: true, followers: false, passcode: false };
+      }
+    })();
+
+    let unlockRequiresLocation = parseBoolFlag(
+      req.body.unlockRequiresLocation,
+      legacyFromMethod.location,
+    );
+    let unlockRequiresFollowers = parseBoolFlag(
+      req.body.unlockRequiresFollowers,
+      legacyFromMethod.followers,
+    );
+    let unlockRequiresPasscode = parseBoolFlag(
+      req.body.unlockRequiresPasscode,
+      legacyFromMethod.passcode,
+    );
     const unlockPasscodeInput = req.body.unlockPasscode
       ? String(req.body.unlockPasscode).trim()
       : '';
@@ -193,14 +225,6 @@ const createMemory = [
           .json({ error: 'Passcode must be at least 4 characters when passcode unlock is selected' });
       }
       unlockPasscodeHash = hashPasscode(unlockPasscodeInput);
-    }
-
-    // allow "none" (no unlock gate); only fall back to location if method is unknown
-    if (
-      !['none', 'location', 'followers', 'passcode'].includes(unlockMethod) ||
-      (!unlockRequiresLocation && !unlockRequiresFollowers && !unlockRequiresPasscode && unlockMethod !== 'none')
-    ) {
-      unlockRequiresLocation = true;
     }
 
     if (!title) {
@@ -238,7 +262,6 @@ const createMemory = [
       journeyStep,
       title,
       shortDescription,
-      body,
       tags: tags.length ? tags.join(',') : null,
       visibility,
       latitude,
@@ -260,6 +283,10 @@ const createMemory = [
     if (uploadedFiles.length) {
       const storedFiles = await persistMemoryAssets(memory.id, uploadedFiles);
       await memoryAssetModel.addAssets(memory.id, storedFiles);
+    }
+
+    if (journeyId && completeJourney) {
+      await journeyModel.updateJourneyCompletion(journeyId, req.user.id, true);
     }
 
     const withAssets = await attachAssetsToMemory(memory);

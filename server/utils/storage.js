@@ -32,7 +32,7 @@ const memoryAssetUpload = multer({
   storage,
   limits: {
     fileSize: 50 * 1024 * 1024, // allow short videos
-    files: 8,
+    files: 40,
   },
 });
 

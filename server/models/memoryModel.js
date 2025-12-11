@@ -19,7 +19,6 @@ function mapMemory(row = {}, options = {}) {
   journeyStepCount: row.journey_step_count ? Number(row.journey_step_count) : null,
   title: row.title,
   shortDescription: row.short_description,
-  body: row.body,
     ownerHandle: row.owner_handle || null,
     ownerName: row.owner_name || null,
     ownerAvatarUrl: row.owner_avatar_url || null,
@@ -58,7 +57,6 @@ async function createMemory({
   journeyStep,
   title,
   shortDescription,
-  body,
   tags,
   visibility,
   latitude,
@@ -73,16 +71,15 @@ async function createMemory({
 }) {
   const result = await db.query(
     `INSERT INTO memories
-    (owner_id, journey_id, journey_step, title, short_description, body, tags, visibility, latitude, longitude, radius_m, expires_at,
+    (owner_id, journey_id, journey_step, title, short_description, tags, visibility, latitude, longitude, radius_m, expires_at,
       unlock_requires_location, unlock_requires_followers, unlock_requires_passcode, unlock_passcode_hash, unlock_available_from)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       ownerId,
       journeyId || null,
       journeyStep || null,
       title,
       shortDescription || null,
-      body,
       tags || null,
       visibility,
       latitude,

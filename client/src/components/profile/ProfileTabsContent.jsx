@@ -65,7 +65,7 @@ function ProfileTabsContent({
     if (!memorySearch.trim()) return base;
     const term = memorySearch.toLowerCase();
     return base.filter((m) =>
-      `${m.title} ${m.shortDescription || ''} ${m.body || ''}`.toLowerCase().includes(term),
+      `${m.title} ${m.shortDescription || ''}`.toLowerCase().includes(term),
     );
   }, [placedMemories, normalizedHandle, memorySearch]);
 
@@ -74,7 +74,7 @@ function ProfileTabsContent({
     if (!savedSearch.trim()) return base;
     const term = savedSearch.toLowerCase();
     return base.filter((m) =>
-      `${m.title} ${m.shortDescription || ''} ${m.body || ''}`.toLowerCase().includes(term),
+      `${m.title} ${m.shortDescription || ''}`.toLowerCase().includes(term),
     );
   }, [savedMemories, savedSearch]);
 
@@ -145,32 +145,14 @@ function ProfileTabsContent({
           <div className="profile-stat">
             <span className="profile-stat__icon" aria-hidden="true">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                <path d="M12 3L4 8v13h16V8l-8-5Z" />
-                <path d="M4 8h16" />
-                <path d="M10 12h4" />
+                <path d="M17 8a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                <path d="M3 21v-1a6 6 0 0 1 6-6h2" />
+                <path d="M21 21v-1a6 6 0 0 0-4-5.65" />
+                <path d="m19 16-2 2.5V20" />
               </svg>
             </span>
-            <span className="profile-stat__label">Placed</span>
-            <span className="profile-stat__value">{placedCount}</span>
-          </div>
-          <div className="profile-stat">
-            <span className="profile-stat__icon" aria-hidden="true">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                <path d="M5 22V12l7-9 7 9v10" />
-                <path d="M5 12h14" />
-              </svg>
-            </span>
-            <span className="profile-stat__label">Found</span>
-            <span className="profile-stat__value">{foundCount}</span>
-          </div>
-          <div className="profile-stat">
-            <span className="profile-stat__icon" aria-hidden="true">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                <path d="M5 12h14" /><path d="M12 5 5 12l7 7" />
-              </svg>
-            </span>
-            <span className="profile-stat__label">Journeys</span>
-            <span className="profile-stat__value">{journeyCount}</span>
+            <span className="profile-stat__label">Following</span>
+            <span className="profile-stat__value">{followingCount}</span>
           </div>
           <div className="profile-stat">
             <span className="profile-stat__icon" aria-hidden="true">
@@ -185,23 +167,12 @@ function ProfileTabsContent({
           <div className="profile-stat">
             <span className="profile-stat__icon" aria-hidden="true">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                <path d="M17 8a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-                <path d="M3 21v-1a6 6 0 0 1 6-6h2" />
-                <path d="M21 21v-1a6 6 0 0 0-4-5.65" />
-                <path d="m19 16-2 2.5V20" />
+                <path d="M5 22V12l7-9 7 9v10" />
+                <path d="M5 12h14" />
               </svg>
             </span>
-            <span className="profile-stat__label">Following</span>
-            <span className="profile-stat__value">{followingCount}</span>
-          </div>
-          <div className="profile-stat">
-            <span className="profile-stat__icon" aria-hidden="true">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                <path d="M5 4v16l7-4 7 4V4Z" />
-              </svg>
-            </span>
-            <span className="profile-stat__label">Saved</span>
-            <span className="profile-stat__value">{savedCount}</span>
+            <span className="profile-stat__label">Memories Found</span>
+            <span className="profile-stat__value">{foundCount}</span>
           </div>
         </div>
 
@@ -213,13 +184,6 @@ function ProfileTabsContent({
         >
           Memories <span className="tab-count">{placedCount}</span>
         </button>
-        <button
-          type="button"
-          className={`tab-button ${tab === 'journeys' ? 'active' : ''}`}
-          onClick={() => setTab('journeys')}
-        >
-          Journeys <span className="tab-count">{journeyCount}</span>
-        </button>
         {showSaved && (
           <button
             type="button"
@@ -229,6 +193,13 @@ function ProfileTabsContent({
             Saved <span className="tab-count">{savedCount}</span>
           </button>
         )}
+        <button
+          type="button"
+          className={`tab-button ${tab === 'journeys' ? 'active' : ''}`}
+          onClick={() => setTab('journeys')}
+        >
+          Journeys <span className="tab-count">{journeyCount}</span>
+        </button>
       </div>
 
       <div className="profile-tab-content ">

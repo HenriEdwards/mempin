@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Button from '../ui/Button.jsx';
 import api from '../../services/api.js';
 import ProfileTabsContent from './ProfileTabsContent.jsx';
@@ -23,11 +23,17 @@ function UserProfilePanel({
   defaultJourneyId = null,
   defaultJourneyScroll = 0,
   onJourneyViewChange,
+  onProfileLoaded,
 }) {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [localFollowing, setLocalFollowing] = useState(isFollowing);
+  const onProfileLoadedRef = useRef(onProfileLoaded);
+
+  useEffect(() => {
+    onProfileLoadedRef.current = onProfileLoaded;
+  }, [onProfileLoaded]);
 
   useEffect(() => {
     setLocalFollowing(isFollowing);
@@ -39,7 +45,11 @@ function UserProfilePanel({
     setError('');
     api
       .getUserProfile(handle)
-      .then((data) => setProfile(data.user || null))
+      .then((data) => {
+        const fetched = data.user || null;
+        setProfile(fetched);
+        onProfileLoadedRef.current?.(fetched);
+      })
       .catch((err) => setError(err.message || 'Unable to load profile'))
       .finally(() => setLoading(false));
   }, [handle, isOpen]);

@@ -1,6 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import MapView from '../components/map/MapView.jsx';
-import UnlockDialog from '../components/map/UnlockDialog.jsx';
 import PlaceMemoryForm from '../components/memory/PlaceMemoryForm.jsx';
 import Modal from '../components/ui/Modal.jsx';
 import Button from '../components/ui/Button.jsx';
@@ -8,6 +13,7 @@ import Input from '../components/ui/Input.jsx';
 import Toast from '../components/ui/Toast.jsx';
 import OverlappingMemoryPanel from '../components/memory/OverlappingMemoryPanel.jsx';
 import MemoryDetailsContent from '../components/memory/MemoryDetailsContent.jsx';
+import LockedMemoryDetails from '../components/memory/LockedMemoryDetails.jsx';
 import MemoriesPanel from '../components/memory/MemoriesPanel.jsx';
 import TopRightActions from '../components/layout/TopRightActions.jsx';
 import ProfilePanel from '../components/profile/ProfilePanel.jsx';
@@ -21,6 +27,45 @@ import api from '../services/api.js';
 import { getHandleError, normalizeHandle } from '../utils/handles.js';
 
 const ALL_VISIBILITIES = ['public', 'followers', 'unlisted', 'private'];
+const LAST_LOCATION_KEY = 'mempin_last_location';
+
+function loadStoredLocation() {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(LAST_LOCATION_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (
+      parsed &&
+      Number.isFinite(parsed.latitude) &&
+      Number.isFinite(parsed.longitude)
+    ) {
+      return { latitude: parsed.latitude, longitude: parsed.longitude };
+    }
+  } catch (error) {
+    // ignore bad data
+  }
+  return null;
+}
+
+function haversineDistanceMeters(origin, destination) {
+  if (!origin || !destination) return null;
+  const { lat: lat1, lng: lng1 } = origin;
+  const { lat: lat2, lng: lng2 } = destination;
+  if (![lat1, lng1, lat2, lng2].every((value) => Number.isFinite(value))) return null;
+
+  const R = 6371000; // meters
+  const radLat1 = (lat1 * Math.PI) / 180;
+  const radLat2 = (lat2 * Math.PI) / 180;
+  const dLat = radLat2 - radLat1;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(radLat1) * Math.cos(radLat2) * Math.sin(dLng / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
 
 function useToast() {
   const [toast, setToast] = useState(null);
@@ -56,6 +101,7 @@ function MapPage() {
     openMemoriesPanel,
     openClusterPanel,
     openMemoryDetailsPanel,
+    openLockedMemoryPanel,
     openCreateMemoryPanel,
     resetRightPanel,
     goBackRightPanel,
@@ -63,8 +109,9 @@ function MapPage() {
     userProfileActions,
   } = useUI();
   const { theme, cycleTheme } = useTheme();
-  const [userLocation, setUserLocation] = useState(null);
+  const [userLocation, setUserLocation] = useState(() => loadStoredLocation());
   const [locationError, setLocationError] = useState('');
+  const [isRequestingLocation, setIsRequestingLocation] = useState(false);
   const [allMemories, setAllMemories] = useState([]);
   const [placedMemories, setPlacedMemories] = useState([]);
   const [foundMemories, setFoundMemories] = useState([]);
@@ -72,10 +119,10 @@ function MapPage() {
   const [journeys, setJourneys] = useState([]);
   const [journeyMemories, setJourneyMemories] = useState({});
   const [followingIds, setFollowingIds] = useState(new Set());
+  const [followingMap, setFollowingMap] = useState(new Map());
   const [placingMemory, setPlacingMemory] = useState(false);
   const [savingMemory, setSavingMemory] = useState(false);
-  const [selectedMemory, setSelectedMemory] = useState(null);
-  const [selectedMemoryPushHistory, setSelectedMemoryPushHistory] = useState(false);
+  const [lockedMemory, setLockedMemory] = useState(null);
   const [unlocking, setUnlocking] = useState(false);
   const [unlockError, setUnlockError] = useState('');
   const [unlockPasscode, setUnlockPasscode] = useState('');
@@ -104,11 +151,13 @@ function MapPage() {
   const [journeyPanelSearch, setJourneyPanelSearch] = useState('');
   const [profileJourneyState, setProfileJourneyState] = useState({ id: null, scrollTop: 0 });
   const [userProfileJourneyState, setUserProfileJourneyState] = useState({ id: null, scrollTop: 0 });
+  const [userProfileMeta, setUserProfileMeta] = useState({ handle: '', name: '', avatarUrl: '' });
   const [viewportWidth, setViewportWidth] = useState(
     typeof window !== 'undefined' ? window.innerWidth : 1440,
   );
   const [placeMemoryDraft, setPlaceMemoryDraft] = useState(null);
   const isMobile = viewportWidth <= 1024;
+  const lastUserIdRef = useRef(null);
   const suggestedTags = useMemo(() => {
     const tagSet = new Set();
     placedMemories.forEach((memory) => {
@@ -132,6 +181,16 @@ function MapPage() {
     [foundMemories],
   );
 
+  const hasUserLocation = useMemo(
+    () =>
+      Boolean(
+        userLocation &&
+          Number.isFinite(userLocation.latitude) &&
+          Number.isFinite(userLocation.longitude),
+      ),
+    [userLocation],
+  );
+
   const normalizedUserHandle = useMemo(() => normalizeHandle(user?.handle || ''), [user]);
 
   const canPlaceMemory = Boolean(user);
@@ -140,18 +199,31 @@ function MapPage() {
   const requestLocation = useCallback(() => {
     if (!navigator.geolocation) {
       setLocationError('Geolocation is not supported');
+      setIsRequestingLocation(false);
       return;
     }
+    setLocationError('');
+    setIsRequestingLocation(true);
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        setUserLocation({
+        const nextLocation = {
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
-        });
+        };
+        setUserLocation(nextLocation);
+        try {
+          if (typeof window !== 'undefined') {
+            window.localStorage.setItem(LAST_LOCATION_KEY, JSON.stringify(nextLocation));
+          }
+        } catch (error) {
+          // ignore storage errors
+        }
         setLocationError('');
+        setIsRequestingLocation(false);
       },
       (error) => {
         setLocationError(error.message || 'Unable to fetch location');
+        setIsRequestingLocation(false);
       },
       { enableHighAccuracy: true },
     );
@@ -167,15 +239,41 @@ function MapPage() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  const handleCenterOnUser = useCallback(() => {
+    setFocusBounds(null);
+    setUserLocation((prev) => (prev ? { ...prev } : prev));
+    requestLocation();
+  }, [requestLocation]);
+
+  useEffect(() => {
+    if (status !== 'ready') return;
+    const currentId = user?.id || null;
+    const previousId = lastUserIdRef.current;
+    if (currentId && currentId !== previousId) {
+      handleCenterOnUser();
+    }
+    lastUserIdRef.current = currentId;
+  }, [status, user?.id, handleCenterOnUser]);
+
   const loadConnections = useCallback(async () => {
     if (!user) {
       setFollowingIds(new Set());
+      setFollowingMap(new Map());
       return;
     }
     try {
       const data = await api.getFollowers();
-      const ids = new Set((data.following || []).map((item) => item.id));
+      const followingList = data.following || [];
+      const ids = new Set(followingList.map((item) => item.id));
+      const map = new Map();
+      followingList.forEach((item) => {
+        const handle = normalizeHandle(item.handle || item.username || '');
+        if (handle) {
+          map.set(handle, item.id);
+        }
+      });
       setFollowingIds(ids);
+      setFollowingMap(map);
     } catch (error) {
       pushToast(error.message || 'Unable to load following list', 'error');
     }
@@ -215,7 +313,6 @@ function MapPage() {
         const haystack = [
           memory.title,
           memory.shortDescription,
-          memory.body,
           (memory.tags || []).join(' '),
           memory.journeyTitle,
           memory.ownerName,
@@ -413,6 +510,7 @@ function MapPage() {
   useEffect(() => {
     if (leftView !== 'userProfile') {
       setUserMemoriesTarget(null);
+      setUserProfileMeta({ handle: '', name: '', avatarUrl: '' });
     }
   }, [leftView]);
 
@@ -483,44 +581,107 @@ function MapPage() {
     [pushToast],
   );
 
-  const handleUnlock = async (passcodeInput = '') => {
-    if (!selectedMemory) {
-      return;
+  const lockedLocationStatus = useMemo(() => {
+    if (!lockedMemory || !lockedMemory.unlockRequiresLocation) {
+      return { required: false, withinRadius: true, hasLocation: Boolean(userLocation), distance: null };
     }
-    if (selectedMemory.unlockRequiresLocation && !userLocation) {
-      setUnlockError('Location required to unlock this memory.');
-      return;
+    if (!userLocation) {
+      return { required: true, withinRadius: false, hasLocation: false, distance: null };
     }
-    setUnlocking(true);
-    setUnlockError('');
-    try {
-      const payload = {};
-      if (userLocation) {
-        payload.latitude = userLocation.latitude;
-        payload.longitude = userLocation.longitude;
+    const distance = haversineDistanceMeters(
+      { lat: Number(userLocation.latitude), lng: Number(userLocation.longitude) },
+      { lat: Number(lockedMemory.latitude), lng: Number(lockedMemory.longitude) },
+    );
+    const withinRadius = Number.isFinite(distance) ? distance <= Number(lockedMemory.radiusM || 0) : false;
+    return {
+      required: true,
+      withinRadius,
+      hasLocation: true,
+      distance: Number.isFinite(distance) ? distance : null,
+    };
+  }, [lockedMemory, userLocation]);
+
+  const lockedFollowerStatus = useMemo(() => {
+    if (!lockedMemory || !lockedMemory.unlockRequiresFollowers) {
+      return { required: false, allowed: true };
+    }
+    if (!user) {
+      return { required: true, allowed: false };
+    }
+    if (lockedMemory.ownerId && lockedMemory.ownerId === user.id) {
+      return { required: true, allowed: true };
+    }
+    return {
+      required: true,
+      allowed: followingIds.has(lockedMemory.ownerId),
+    };
+  }, [lockedMemory, user, followingIds]);
+
+  const handleUnlock = useCallback(
+    async (passcodeInput = '') => {
+      if (!lockedMemory) {
+        return;
       }
-      if (selectedMemory.unlockRequiresPasscode) {
-        payload.passcode = passcodeInput || unlockPasscode;
+      if (lockedMemory.unlockRequiresLocation && !userLocation) {
+        setUnlockError('Location required to unlock this memory.');
+        return;
       }
-      const response = await api.unlockMemory(selectedMemory.id, payload);
-      setSelectedMemory(null);
-      const unlockedMemory = response.memory;
-      setDetailMemory(unlockedMemory);
-      setUnlockPasscode('');
-      openMemoryDetailsPanel(
-        { memoryId: unlockedMemory.id },
-        { pushHistory: selectedMemoryPushHistory },
-      );
-      setSelectedMemoryPushHistory(false);
-      loadPersonalMemories();
-      await loadAllMemories().catch(() => {});
-      pushToast('Memory unlocked');
-    } catch (error) {
-      setUnlockError(error.message);
-    } finally {
-      setUnlocking(false);
-    }
-  };
+      if (lockedMemory.unlockRequiresLocation && !lockedLocationStatus.withinRadius) {
+        setUnlockError(
+          lockedLocationStatus.hasLocation
+            ? 'Move closer to this memory to unlock.'
+            : 'Location required to unlock this memory.',
+        );
+        return;
+      }
+      if (
+        lockedMemory.unlockRequiresFollowers &&
+        user &&
+        lockedMemory.ownerId !== user.id &&
+        !followingIds.has(lockedMemory.ownerId)
+      ) {
+        setUnlockError('Only followers can unlock this memory.');
+        return;
+      }
+      setUnlocking(true);
+      setUnlockError('');
+      try {
+        const payload = {};
+        if (userLocation) {
+          payload.latitude = userLocation.latitude;
+          payload.longitude = userLocation.longitude;
+        }
+        if (lockedMemory.unlockRequiresPasscode) {
+          payload.passcode = passcodeInput || unlockPasscode;
+        }
+        const response = await api.unlockMemory(lockedMemory.id, payload);
+        setLockedMemory(null);
+        const unlockedMemory = response.memory;
+        setDetailMemory(unlockedMemory);
+        setUnlockPasscode('');
+        openMemoryDetailsPanel({ memoryId: unlockedMemory.id });
+        loadPersonalMemories();
+        await loadAllMemories().catch(() => {});
+        pushToast('Memory unlocked');
+      } catch (error) {
+        setUnlockError(error.message);
+      } finally {
+        setUnlocking(false);
+      }
+    },
+    [
+      lockedMemory,
+      userLocation,
+      unlockPasscode,
+      openMemoryDetailsPanel,
+      loadPersonalMemories,
+      loadAllMemories,
+      pushToast,
+      followingIds,
+      user,
+      lockedLocationStatus,
+    ],
+  );
 
   const handleToggleSave = useCallback(
     async (memory, shouldSave) => {
@@ -646,6 +807,93 @@ function MapPage() {
     [fetchMemoryDetails, openMemoryDetailsPanel],
   );
 
+  const openLockedMemory = useCallback(
+    (memory, pushHistory = false) => {
+      if (!memory?.id) return;
+      setDetailMemory(null);
+      setDetailLoading(false);
+      setLockedMemory(memory);
+      openLockedMemoryPanel({ memoryId: memory.id, memory }, { pushHistory });
+    },
+    [openLockedMemoryPanel],
+  );
+
+  const isFollowingTarget = useCallback(
+    (handle, id = null) => {
+      const normalized = normalizeHandle(handle || '');
+      if (id && followingIds.has(id)) return true;
+      if (normalized && followingMap.has(normalized)) return true;
+      return false;
+    },
+    [followingIds, followingMap],
+  );
+
+  const followHandle = useCallback(
+    async (handle) => {
+      if (!handle) return;
+      const normalized = normalizeHandle(handle);
+      if (!normalized) return;
+      try {
+        await api.addFollower(normalized);
+        await loadConnections();
+        pushToast('Followed');
+      } catch (error) {
+        pushToast(error.message || 'Unable to follow', 'error');
+      }
+    },
+    [loadConnections, pushToast],
+  );
+
+  const unfollowUser = useCallback(
+    async ({ userId, handle }) => {
+      const normalized = normalizeHandle(handle || '');
+      let targetId = userId || (normalized ? followingMap.get(normalized) : null);
+      if (!targetId && normalized) {
+        try {
+          const profile = await api.getUserProfile(normalized);
+          targetId = profile?.user?.id || null;
+        } catch (error) {
+          // ignore, fallback to error below
+        }
+      }
+      if (!targetId) {
+        pushToast('Unable to unfollow right now', 'error');
+        return;
+      }
+      try {
+        await api.removeFollower(targetId);
+        await loadConnections();
+        pushToast('Unfollowed');
+      } catch (error) {
+        pushToast(error.message || 'Unable to unfollow', 'error');
+      }
+    },
+    [followingMap, loadConnections, pushToast],
+  );
+
+  const buildFollowProps = useCallback(
+    (memory) => {
+      if (!memory) {
+        return { canFollowOwner: false, isFollowingOwner: false, onToggleFollowOwner: null };
+      }
+      const ownerHandle = normalizeHandle(memory.ownerHandle || '');
+      const ownerId = memory.ownerId;
+      const canFollowOwner =
+        Boolean(user) && ownerHandle && (!ownerId || ownerId !== user.id);
+      const isFollowingOwner = canFollowOwner && isFollowingTarget(ownerHandle, ownerId);
+      const onToggleFollowOwner = async () => {
+        if (!canFollowOwner) return;
+        if (isFollowingTarget(ownerHandle, ownerId)) {
+          await unfollowUser({ userId: ownerId, handle: ownerHandle });
+        } else {
+          await followHandle(ownerHandle);
+        }
+      };
+      return { canFollowOwner, isFollowingOwner, onToggleFollowOwner };
+    },
+    [user, isFollowingTarget, unfollowUser, followHandle],
+  );
+
   const processMemorySelection = useCallback(
     (memory, options = {}) => {
       if (!memory) return;
@@ -661,8 +909,7 @@ function MapPage() {
         new Date(memory.unlockAvailableFrom).getTime() > Date.now();
 
       if (isTimeLocked) {
-        setSelectedMemory(memory);
-        setSelectedMemoryPushHistory(pushHistory);
+        openLockedMemory(memory, pushHistory);
         return;
       }
 
@@ -672,8 +919,7 @@ function MapPage() {
       }
 
       if (!user) {
-        setSelectedMemory(memory);
-        setSelectedMemoryPushHistory(pushHistory);
+        openLockedMemory(memory, pushHistory);
         return;
       }
 
@@ -686,10 +932,9 @@ function MapPage() {
         return;
       }
 
-      setSelectedMemory(memory);
-      setSelectedMemoryPushHistory(pushHistory);
+      openLockedMemory(memory, pushHistory);
     },
-    [user, foundMemories, placedMemories, openMemoryDetails],
+    [user, foundMemories, placedMemories, openMemoryDetails, openLockedMemory],
   );
 
   const handleProfileMemoryClick = useCallback(
@@ -768,9 +1013,18 @@ function MapPage() {
   }, [rightView]);
 
   useEffect(() => {
+    if (rightView !== 'lockedMemory') {
+      setLockedMemory(null);
+      setUnlockPasscode('');
+      setUnlockError('');
+      setUnlocking(false);
+    }
+  }, [rightView]);
+
+  useEffect(() => {
     setUnlockPasscode('');
     setUnlockError('');
-  }, [selectedMemory]);
+  }, [lockedMemory]);
 
   const renderPanel = useCallback(
     (title, onClose, actions, content, leading) => {
@@ -878,12 +1132,32 @@ function MapPage() {
         openProfilePanel();
         return;
       }
-      const displayName = handleValue?.name || '';
+      const previousMeta = userProfileMeta?.handle === normalized ? userProfileMeta : null;
+      const displayName = handleValue?.name || previousMeta?.name || userMemoriesTarget?.name || '';
+      const avatarUrl = handleValue?.avatarUrl || previousMeta?.avatarUrl || '';
       setUserMemoriesTarget({ handle: normalized, name: displayName });
       setUserJourneysTarget({ handle: normalized, name: displayName });
+      setUserProfileMeta({ handle: normalized, name: displayName, avatarUrl });
       openUserProfilePanel(normalized, options);
     },
-    [openProfilePanel, openUserProfilePanel, user?.handle],
+    [openProfilePanel, openUserProfilePanel, user?.handle, userProfileMeta, userMemoriesTarget?.name],
+  );
+
+  const handleProfileLoaded = useCallback(
+    (loaded, fallbackHandle) => {
+      if (!loaded) return;
+      setUserProfileMeta((prev) => {
+        const normalizedHandle = normalizeHandle(
+          loaded.handle || fallbackHandle || prev.handle || userMemoriesTarget?.handle || '',
+        );
+        return {
+          handle: normalizedHandle,
+          name: loaded.name || userMemoriesTarget?.name || prev.name || '',
+          avatarUrl: loaded.avatarUrl || prev.avatarUrl || '',
+        };
+      });
+    },
+    [userMemoriesTarget?.handle, userMemoriesTarget?.name],
   );
 
 
@@ -918,9 +1192,14 @@ function MapPage() {
     : normalizedUserHandle;
   const lastRightHistory = rightHistory[rightHistory.length - 1] || null;
   const showRightBack = rightHistory.length > 0;
-  const currentMemoryId = detailMemory?.id || panels.right?.payload?.memoryId || null;
+  const currentMemoryId =
+    detailMemory?.id ||
+    lockedMemory?.id ||
+    panels.right?.payload?.memoryId ||
+    panels.right?.payload?.memory?.id ||
+    null;
   const showMemoryBack =
-    rightView === 'memoryDetails' &&
+    (rightView === 'memoryDetails' || rightView === 'lockedMemory') &&
     lastRightHistory?.view === 'cluster' &&
     currentMemoryId &&
     Array.isArray(lastRightHistory?.payload?.memories) &&
@@ -957,7 +1236,7 @@ function MapPage() {
                 .filter((memory) => {
                   if (!journeyPanelSearch.trim()) return true;
                   const term = journeyPanelSearch.toLowerCase();
-                  return `${memory.title} ${memory.shortDescription || ''} ${memory.body || ''}`
+                  return `${memory.title} ${memory.shortDescription || ''}`
                     .toLowerCase()
                     .includes(term);
                 })
@@ -1107,24 +1386,50 @@ function MapPage() {
 
     if (leftView === 'userProfile') {
       const normalizedTargetHandle = normalizeHandle(userProfileHandle || userMemoriesTarget?.handle || '');
-      const targetName = userMemoriesTarget?.name || '';
+      const targetName = userMemoriesTarget?.name || userProfileMeta?.name || '';
+      const targetAvatar = userProfileMeta?.avatarUrl || '';
+      const canFollowProfile =
+        Boolean(user) && normalizedTargetHandle && normalizedTargetHandle !== normalizedUserHandle;
+      const isFollowingProfile = canFollowProfile && isFollowingTarget(normalizedTargetHandle, null);
+      const toggleFollowProfile = async () => {
+        if (!canFollowProfile) return;
+        if (isFollowingTarget(normalizedTargetHandle, null)) {
+          await unfollowUser({ handle: normalizedTargetHandle });
+        } else {
+          await followHandle(normalizedTargetHandle);
+        }
+      };
       const userProfileLeading = (
         <div className="profile-header profile-header--panel">
-          <div className="profile-header__avatar profile-header__avatar--fallback">
-            {(targetName || normalizedTargetHandle || '?').charAt(0).toUpperCase()}
-          </div>
+          {targetAvatar ? (
+            <img src={targetAvatar} alt="" className="profile-header__avatar" referrerPolicy="no-referrer" />
+          ) : (
+            <div className="profile-header__avatar profile-header__avatar--fallback">
+              {(targetName || normalizedTargetHandle || '?').charAt(0).toUpperCase()}
+            </div>
+          )}
           <div className="profile-header__meta">
             <div className="profile-header__handle">
               @{normalizedTargetHandle || userProfileHandle || 'profile'}
             </div>
-            {targetName && <div className="profile-header__name">{targetName}</div>}
+            {(targetName || userProfileMeta?.name) && (
+              <div className="profile-header__name">{targetName || userProfileMeta?.name}</div>
+            )}
           </div>
         </div>
       );
       return renderPanel(
         '',
         () => goBackFromUserProfile(),
-        null,
+        canFollowProfile ? (
+          <Button
+            variant={isFollowingProfile ? 'ghost' : 'primary'}
+            className="btn-sm"
+            onClick={toggleFollowProfile}
+          >
+            {isFollowingProfile ? 'Unfollow' : 'Follow'}
+          </Button>
+        ) : null,
         (
           <UserProfilePanel
             isOpen
@@ -1158,6 +1463,7 @@ function MapPage() {
               openJourneyPanel({ journeyId, journeyTitle, ownerHandle: userMemoriesTarget?.handle })
             }
             onClose={() => goBackFromUserProfile()}
+            onProfileLoaded={(loaded) => handleProfileLoaded(loaded, normalizedTargetHandle)}
           />
         ),
         userProfileLeading,
@@ -1181,6 +1487,9 @@ function MapPage() {
     journeyStopPoints,
     journeyMemories,
     journeyVisibilityMap,
+    isFollowingTarget,
+    unfollowUser,
+    followHandle,
     normalizedUserHandle,
     userProfileHandle,
     userProfileActions.isFollowing,
@@ -1196,6 +1505,8 @@ function MapPage() {
     user,
     profileJourneyState,
     userProfileJourneyState,
+    userProfileMeta,
+    handleProfileLoaded,
     goBackFromUserProfile,
     renderPanel,
   ]);
@@ -1249,7 +1560,45 @@ function MapPage() {
   ]);
 
   const rightContent = useMemo(() => {
+    if (rightView === 'lockedMemory') {
+      const locked = lockedMemory || panels.right?.payload?.memory || null;
+      const followProps = buildFollowProps(locked);
+      return renderPanel(
+        locked?.title || 'Locked memory',
+        () => {
+          setLockedMemory(null);
+          resetRightPanel();
+        },
+        showMemoryBack ? (
+          <Button variant="ghost" onClick={goBackRightPanel}>
+            Back
+          </Button>
+        ) : null,
+        locked ? (
+          <LockedMemoryDetails
+            memory={locked}
+            canAttemptUnlock={canUnlock}
+            isUnlocking={unlocking}
+            error={unlockError}
+            passcode={unlockPasscode}
+            onPasscodeChange={setUnlockPasscode}
+            onUnlock={handleUnlock}
+            locationStatus={lockedLocationStatus}
+            followerStatus={lockedFollowerStatus}
+            onRetryLocation={requestLocation}
+            onViewProfile={openProfileFromList}
+            canFollowOwner={followProps.canFollowOwner}
+            isFollowingOwner={followProps.isFollowingOwner}
+            onToggleFollowOwner={followProps.onToggleFollowOwner}
+          />
+        ) : (
+          <div className="empty-state">Select a memory.</div>
+        ),
+      );
+    }
+
     if (rightView === 'memoryDetails') {
+      const followProps = buildFollowProps(detailMemory);
       return renderPanel(
         detailMemory?.title || 'Memory',
         resetRightPanel,
@@ -1268,6 +1617,9 @@ function MapPage() {
                 onViewProfile={openProfileFromList}
                 onOpenExternal={handleOpenExternalMap}
                 onToggleSave={(mem, next) => handleToggleSave(mem, next)}
+                canFollowOwner={followProps.canFollowOwner}
+                isFollowingOwner={followProps.isFollowingOwner}
+                onToggleFollowOwner={followProps.onToggleFollowOwner}
               />
             )}
             {!detailLoading && !detailMemory && <div className="empty-state">Select a memory.</div>}
@@ -1362,10 +1714,21 @@ function MapPage() {
     goBackRightPanel,
     detailLoading,
     openProfileFromList,
+    buildFollowProps,
     handleOpenExternalMap,
     clusterGroup,
     processMemorySelection,
     handleToggleSave,
+    lockedMemory,
+    panels.right,
+    canUnlock,
+    unlocking,
+    unlockError,
+    unlockPasscode,
+    handleUnlock,
+    lockedLocationStatus,
+    lockedFollowerStatus,
+    requestLocation,
     socialMode,
     openFollowersPanel,
     socialHandle,
@@ -1382,7 +1745,7 @@ function MapPage() {
     () => ({
       userLocation,
       locationError,
-      onRetryLocation: requestLocation,
+      onRetryLocation: handleCenterOnUser,
       memories: filteredMemories,
       onSelectGroup: handleGroupSelection,
       focusBounds,
@@ -1390,20 +1753,22 @@ function MapPage() {
       highlightedMemoryIds: highlightedJourneyMemoryIds,
       navigationRequest: null,
       onRouteComputed: undefined,
+      isLocating: isRequestingLocation,
     }),
     [
       userLocation,
       locationError,
-      requestLocation,
+      handleCenterOnUser,
       filteredMemories,
       handleGroupSelection,
       focusBounds,
       activeJourneyPaths,
       highlightedJourneyMemoryIds,
+      isRequestingLocation,
     ],
   );
 
-  const disablePlaceMemory = !canPlaceMemory || !userLocation;
+  const disablePlaceMemory = !canPlaceMemory || !hasUserLocation;
 
   return (
     <div className="app-shell">
@@ -1421,12 +1786,16 @@ function MapPage() {
             filters={filters}
             isFilterOpen={isFilterOpen}
             onToggleFilter={() => setIsFilterOpen((prev) => !prev)}
+            onCloseFilter={() => setIsFilterOpen(false)}
             onResetFilters={resetFilters}
             onSelectOwnership={(value) => setFilters((prev) => ({ ...prev, ownership: value }))}
             onSelectJourneyType={(value) => setFilters((prev) => ({ ...prev, journey: value }))}
             onSelectMedia={(value) => setFilters((prev) => ({ ...prev, media: value }))}
             onToggleVisibilityFilter={toggleVisibilityFilter}
             onSearchChange={(value) => setFilters((prev) => ({ ...prev, search: value }))}
+            onCenterOnUser={handleCenterOnUser}
+            isLocating={isRequestingLocation}
+            hasLocation={hasUserLocation}
           />
         </div>
 
@@ -1499,20 +1868,6 @@ function MapPage() {
         </div>
       </div>
 
-      <UnlockDialog
-        memory={selectedMemory}
-        canUnlock={canUnlock}
-        isUnlocking={unlocking}
-        error={unlockError}
-        onUnlock={handleUnlock}
-        passcode={unlockPasscode}
-        onPasscodeChange={setUnlockPasscode}
-        onClose={() => {
-          setSelectedMemory(null);
-          setSelectedMemoryPushHistory(false);
-        }}
-      />
-
       <Modal
         isOpen={handleModalOpen}
         onClose={user?.handle ? () => setHandleModalOpen(false) : undefined}
@@ -1579,5 +1934,3 @@ function MapPage() {
 }
 
 export default MapPage;
-
-

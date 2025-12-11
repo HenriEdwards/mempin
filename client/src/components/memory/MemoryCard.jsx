@@ -7,20 +7,15 @@ function formatDate(value) {
   }).format(date);
 }
 
-function MemoryCard({ memory, variant = 'placed', showFullBody = false }) {
+function MemoryCard({ memory, variant = 'placed' }) {
   const timesFound = typeof memory.timesFound === 'number' ? memory.timesFound : 0;
-  const hasBody = Boolean(memory.body);
-  const bodyText =
-    showFullBody || variant === 'placed'
-      ? memory.body
-      : memory.body?.slice(0, 140);
+  const summary = memory.shortDescription || '';
   return (
     <div className="memory-card">
       <h4 style={{ margin: '0 0 0.5rem' }}>{memory.title}</h4>
-      {hasBody && variant === 'found' && (
+      {summary && (
         <p className="memory-card__body" style={{ margin: '0 0 0.75rem' }}>
-          {bodyText}
-          {!showFullBody && memory.body.length > 140 ? '...' : ''}
+          {summary}
         </p>
       )}
       <div className="memory-card__meta">

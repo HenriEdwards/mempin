@@ -18,7 +18,7 @@ function MemoriesPanel({ placed = [], found = [], onSelectMemory, titleHandle = 
     if (!searchPlaced.trim()) return placed;
     const term = searchPlaced.toLowerCase();
     return placed.filter((memory) =>
-      `${memory.title} ${memory.shortDescription || ''} ${memory.body || ''}`
+      `${memory.title} ${memory.shortDescription || ''}`
         .toLowerCase()
         .includes(term),
     );
@@ -28,7 +28,7 @@ function MemoriesPanel({ placed = [], found = [], onSelectMemory, titleHandle = 
     if (!searchFound.trim()) return found;
     const term = searchFound.toLowerCase();
     return found.filter((memory) =>
-      `${memory.title} ${memory.shortDescription || ''} ${memory.body || ''}`
+      `${memory.title} ${memory.shortDescription || ''}`
         .toLowerCase()
         .includes(term),
     );

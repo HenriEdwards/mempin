@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react';
-import MemoryMiniMap from './MemoryMiniMap.jsx';
 import Button from '../ui/Button.jsx';
 
 function formatDate(value) {
@@ -28,6 +27,9 @@ function MemoryDetailsContent({
   onNavigate,
   onOpenExternal,
   onToggleSave,
+  canFollowOwner = false,
+  isFollowingOwner = false,
+  onToggleFollowOwner = null,
 }) {
   if (!memory) return null;
   const [lightboxIndex, setLightboxIndex] = useState(null);
@@ -38,6 +40,7 @@ function MemoryDetailsContent({
   const audioAssets = (memory.assets || []).filter((asset) => asset.type === 'audio');
   const videoAssets = (memory.assets || []).filter((asset) => asset.type === 'video');
   const shareUrl = `${window.location.origin}/m/${memory.id}`;
+  const MAX_MEDIA_DISPLAY = 6;
 
   const openLightbox = (index) => {
     setLightboxIndex(index);
@@ -67,147 +70,187 @@ function MemoryDetailsContent({
 
   return (
     <div className="memory-details">
-      <div className="memory-details__header">
-        <div>
-          <h2>{memory.title}</h2>
-          {memory.shortDescription && <p>{memory.shortDescription}</p>}
-          {(memory.ownerHandle || memory.ownerName) && (
-            <p className="memory-details__owner">
-              by{' '}
+      <div className="memory-details__body">
+        <div className="memory-details__header">
+          <div>
+            {memory.shortDescription && (
+              <p className="memory-details__lede">{memory.shortDescription}</p>
+            )}
+          </div>
+          {onGenerateQR && (
+            <Button variant="outline" onClick={() => onGenerateQR(shareUrl)}>
+              Generate QR code
+            </Button>
+          )}
+          {(onNavigate || onToggleSave) && (
+            <div className="memory-details__actions">
+              {onToggleSave && (
+                <label className="save-memory-toggle">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(memory.saved)}
+                    onChange={(event) => onToggleSave(memory, event.target.checked)}
+                  />
+                  <span>{memory.saved ? 'Memory saved' : 'Save memory'}</span>
+                </label>
+              )}
+              {onNavigate && (
+                <Button
+                  variant="primary"
+                  onClick={() => onNavigate(memory)}
+                  aria-label="Navigate to this memory"
+                >
+                  Navigate
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
+        {(memory.ownerHandle || memory.ownerName) && (
+          <div className="memory-owner-bar">
+            <div className="memory-owner-avatar">
+              {memory.ownerAvatarUrl ? (
+                <img src={memory.ownerAvatarUrl} alt="" />
+              ) : (
+                <span>{(memory.ownerName || memory.ownerHandle || '?').charAt(0).toUpperCase()}</span>
+              )}
+            </div>
+            <div className="memory-owner-meta">
               <button
                 type="button"
                 className="link-button"
                 onClick={() => onViewProfile?.(memory.ownerHandle)}
                 disabled={!memory.ownerHandle}
               >
-                {memory.ownerName || memory.ownerHandle}
-                {memory.ownerHandle ? ` (@${memory.ownerHandle})` : ''}
+                @{memory.ownerHandle || 'unknown'}
               </button>
-            </p>
-          )}
+              {memory.ownerName && <span className="muted">{memory.ownerName}</span>}
+            </div>
+            {canFollowOwner && (
+              <Button
+                variant={isFollowingOwner ? 'ghost' : 'primary'}
+                className="btn-sm"
+                onClick={onToggleFollowOwner}
+              >
+                {isFollowingOwner ? 'Unfollow' : 'Follow'}
+              </Button>
+            )}
+          </div>
+        )}
+        <div className="memory-details__stats">
+          <div>
+            <span>Visibility</span>
+            <strong>{memory.visibility}</strong>
+          </div>
+          <div>
+            <span>Radius</span>
+            <strong>{memory.radiusM} m</strong>
+          </div>
+          <div>
+            <span>Views</span>
+            <strong className="memory-details__stat-icon">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+              {memory.timesFound}
+            </strong>
+          </div>
+          <div>
+            <span>Expires</span>
+            <strong>{formatExpiry(memory.expiresAt)}</strong>
+          </div>
         </div>
-        {onGenerateQR && (
-          <Button variant="outline" onClick={() => onGenerateQR(shareUrl)}>
-            Generate QR code
+        {memory.journeyId && (
+          <div className="memory-details__journey">
+            Part {memory.journeyStep || 1}
+            {memory.journeyStepCount ? ` of ${memory.journeyStepCount}` : ''} in this journey
+          </div>
+        )}
+        {memory.tags?.length > 0 && (
+          <div className="memory-details__tags">
+            {memory.tags.map((tag) => (
+              <span key={tag} className="chip">
+                #{tag}
+              </span>
+            ))}
+          </div>
+        )}
+        {imageAssets.length > 0 && (
+          <div className="memory-details__section">
+            <h4>Gallery</h4>
+            <div className="memory-media-row memory-media-row--grid">
+              {imageAssets.slice(0, MAX_MEDIA_DISPLAY).map((asset, index) => {
+                const remaining = imageAssets.length - MAX_MEDIA_DISPLAY;
+                const showOverlay = index === MAX_MEDIA_DISPLAY - 1 && remaining > 0;
+                return (
+                  <button
+                    key={asset.id}
+                    type="button"
+                    className={`memory-media-thumb ${showOverlay ? 'memory-media-thumb--more' : ''}`}
+                    onClick={() => openLightbox(index)}
+                  >
+                    <img src={asset.url} alt="" />
+                    {showOverlay && <span className="memory-media-thumb__overlay">+{remaining}</span>}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+        {audioAssets.length > 0 && (
+          <div className="memory-details__section">
+            <h4>Audio</h4>
+            <div className="memory-audio-list">
+              {audioAssets.map((asset, index) => (
+                <div className="memory-audio-item" key={asset.id}>
+                  <span className="memory-audio-label">Track {index + 1}</span>
+                  <audio controls src={asset.url} className="memory-audio-player" />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {videoAssets.length > 0 && (
+          <div className="memory-details__section">
+            <h4>Video</h4>
+            <div className="memory-media-row memory-media-row--video memory-media-row--grid">
+              {videoAssets.slice(0, MAX_MEDIA_DISPLAY).map((asset, index) => {
+                const remaining = videoAssets.length - MAX_MEDIA_DISPLAY;
+                const showOverlay = index === MAX_MEDIA_DISPLAY - 1 && remaining > 0;
+                return (
+                  <div
+                    key={asset.id}
+                    className={`memory-media-thumb memory-media-thumb--video ${showOverlay ? 'memory-media-thumb--more' : ''}`}
+                  >
+                    <video controls src={asset.url} />
+                    {showOverlay && <span className="memory-media-thumb__overlay">+{remaining}</span>}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+      {onOpenExternal && (
+        <div className="memory-details__footer">
+          <Button
+            variant="ghost"
+            onClick={() => onOpenExternal(memory)}
+            aria-label="View on Google Maps"
+          >
+            View on Google Maps
           </Button>
-        )}
-        {(onOpenExternal || onNavigate || onToggleSave) && (
-          <div className="memory-details__actions">
-            {onToggleSave && (
-              <label className="save-memory-toggle">
-                <input
-                  type="checkbox"
-                  checked={Boolean(memory.saved)}
-                  onChange={(event) => onToggleSave(memory, event.target.checked)}
-                />
-                <span>{memory.saved ? 'Memory saved' : 'Save memory'}</span>
-              </label>
-            )}
-            {onOpenExternal && (
-              <Button
-                variant="ghost"
-                onClick={() => onOpenExternal(memory)}
-                aria-label="View on Google Maps"
-              >
-                View on Google Maps
-              </Button>
-            )}
-            {onNavigate && (
-              <Button
-                variant="primary"
-                onClick={() => onNavigate(memory)}
-                aria-label="Navigate to this memory"
-              >
-                Navigate
-              </Button>
-            )}
-          </div>
-        )}
-      </div>
-      <div className="memory-details__stats">
-        <div>
-          <span>Visibility</span>
-          <strong>{memory.visibility}</strong>
-        </div>
-        <div>
-          <span>Radius</span>
-          <strong>{memory.radiusM} m</strong>
-        </div>
-        <div>
-          <span>Unlocked</span>
-          <strong>{memory.timesFound}</strong>
-        </div>
-        <div>
-          <span>Last unlocked</span>
-          <strong>{formatDate(memory.lastUnlockedAt)}</strong>
-        </div>
-        <div>
-          <span>Expires</span>
-          <strong>{formatExpiry(memory.expiresAt)}</strong>
-        </div>
-      </div>
-      {memory.journeyId && (
-        <div className="memory-details__journey">
-          Part {memory.journeyStep || 1}
-          {memory.journeyStepCount ? ` of ${memory.journeyStepCount}` : ''} in this journey
-        </div>
-      )}
-      {memory.tags?.length > 0 && (
-        <div className="memory-details__tags">
-          {memory.tags.map((tag) => (
-            <span key={tag} className="chip">
-              #{tag}
-            </span>
-          ))}
-        </div>
-      )}
-      {memory.body && (
-        <div className="memory-details__section">
-          <h4>Story</h4>
-          <p>{memory.body}</p>
-        </div>
-      )}
-      <div className="memory-details__section">
-        <h4>Location</h4>
-        <MemoryMiniMap
-          latitude={memory.latitude}
-          longitude={memory.longitude}
-          radiusM={memory.radiusM}
-        />
-      </div>
-      {imageAssets.length > 0 && (
-        <div className="memory-details__section">
-          <h4>Gallery</h4>
-          <div className="memory-details__gallery">
-            {imageAssets.map((asset, index) => (
-              <button
-                key={asset.id}
-                type="button"
-                className="memory-details__thumb"
-                onClick={() => openLightbox(index)}
-              >
-                <img src={asset.url} alt="" />
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-      {audioAssets.length > 0 && (
-        <div className="memory-details__section">
-          <h4>Audio</h4>
-          {audioAssets.map((asset) => (
-            <audio key={asset.id} controls src={asset.url} />
-          ))}
-        </div>
-      )}
-      {videoAssets.length > 0 && (
-        <div className="memory-details__section">
-          <h4>Video</h4>
-          <div className="memory-details__videos">
-            {videoAssets.map((asset) => (
-              <video key={asset.id} controls src={asset.url} style={{ maxWidth: '100%', borderRadius: '0.5rem' }} />
-            ))}
-          </div>
         </div>
       )}
       {activeImage && (

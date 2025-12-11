@@ -8,13 +8,14 @@ function mapJourney(row = {}) {
     description: row.description,
     createdAt: row.created_at,
     stepCount: row.step_count ? Number(row.step_count) : 0,
+    completed: row.completed === 1 || row.completed === true,
   };
 }
 
 async function createJourney({ ownerId, title, description }) {
   const result = await db.query(
-    `INSERT INTO journeys (owner_id, title, description)
-     VALUES (?, ?, ?)`,
+    `INSERT INTO journeys (owner_id, title, description, completed)
+     VALUES (?, ?, ?, 0)`,
     [ownerId, title, description || null],
   );
 
@@ -81,9 +82,20 @@ async function getJourneySteps(journeyId) {
   return rows;
 }
 
+async function updateJourneyCompletion(journeyId, ownerId, completed = true) {
+  await db.query(
+    `UPDATE journeys
+     SET completed = ?
+     WHERE id = ? AND owner_id = ?`,
+    [completed ? 1 : 0, journeyId, ownerId],
+  );
+  return getJourneyById(journeyId);
+}
+
 module.exports = {
   createJourney,
   getJourneysByOwner,
   getJourneyById,
   getJourneySteps,
+  updateJourneyCompletion,
 };

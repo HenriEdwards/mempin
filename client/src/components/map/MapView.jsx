@@ -136,6 +136,7 @@ function clampCenterWithinBounds(map) {
 function FlatMapView({
   userLocation,
   locationError,
+  isLocating = false,
   onRetryLocation,
   memories,
   onSelectGroup,
@@ -678,10 +679,13 @@ function FlatMapView({
       {!hasLocation && !mapError && (
         <div className="map-notice">
           <div className="map-notice__text">
-            {locationError || 'Enable location to show your position. The map is still usable without it.'}
+            {isLocating
+              ? 'Finding your location...'
+              : locationError ||
+                'Turn on location to show your position and center the map on you. The map is still usable without it.'}
           </div>
-          <Button variant="primary" onClick={onRetryLocation}>
-            Try again
+          <Button variant="primary" onClick={onRetryLocation} disabled={isLocating}>
+            {isLocating ? 'Locating...' : 'Find me'}
           </Button>
         </div>
       )}
@@ -692,6 +696,7 @@ function FlatMapView({
 function MapView({
   userLocation,
   locationError,
+  isLocating = false,
   onRetryLocation,
   memories,
   onSelectGroup,
@@ -701,13 +706,18 @@ function MapView({
   navigationRequest = null,
   onRouteComputed,
 }) {
-  const hasLocation = Boolean(userLocation);
+  const hasLocation = Boolean(
+    userLocation &&
+      Number.isFinite(userLocation.latitude) &&
+      Number.isFinite(userLocation.longitude),
+  );
 
   return (
     <div className="map-panel map-panel--flat">
       <FlatMapView
         userLocation={userLocation}
         locationError={locationError}
+        isLocating={isLocating}
         onRetryLocation={onRetryLocation}
         memories={memories}
         onSelectGroup={onSelectGroup}
