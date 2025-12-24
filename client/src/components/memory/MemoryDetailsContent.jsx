@@ -27,6 +27,7 @@ function MemoryDetailsContent({
   onNavigate,
   onOpenExternal,
   onToggleSave,
+  onOpenJourney,
   canFollowOwner = false,
   isFollowingOwner = false,
   onToggleFollowOwner = null,
@@ -67,32 +68,63 @@ function MemoryDetailsContent({
   };
 
   const activeImage = typeof lightboxIndex === 'number' ? imageAssets[lightboxIndex] : null;
+  const visibilityIcon =
+    memory.visibility === 'private'
+      ? 'lock'
+      : memory.visibility === 'followers'
+        ? 'groups'
+        : memory.visibility === 'unlisted'
+          ? 'link'
+          : 'public';
+  const expiryText = formatExpiry(memory.expiresAt);
+  const radiusValue = Number(memory.radiusM);
+  const radiusText = Number.isFinite(radiusValue) ? `${radiusValue} m` : 'N/A';
+  const viewCountValue = Number(memory.timesFound);
+  const viewCount = Number.isFinite(viewCountValue) ? viewCountValue : 0;
+  const saveToggle = onToggleSave ? (
+    <div className="memory-details__save">
+      <label className="save-memory-toggle">
+        <input
+          type="checkbox"
+          checked={Boolean(memory.saved)}
+          onChange={(event) => onToggleSave(memory, event.target.checked)}
+        />
+        <span>{memory.saved ? 'Memory saved' : 'Save memory'}</span>
+      </label>
+    </div>
+  ) : null;
+  const journeyButton =
+    memory.journeyId &&
+    (onOpenJourney ? (
+      <button
+        type="button"
+        className="memory-owner-journey"
+        onClick={() =>
+          onOpenJourney(memory.journeyId, memory.journeyTitle || 'Journey', memory.ownerHandle)
+        }
+        aria-label={`Open journey ${memory.journeyTitle || 'Journey'}`}
+      >
+        <span className="memory-owner-journey__title">{memory.journeyTitle || 'Journey'}</span>
+        {Number.isFinite(memory.journeyStep) && (
+          <span className="memory-owner-journey__steps">
+            Step {memory.journeyStep}
+            {memory.journeyStepCount ? ` of ${memory.journeyStepCount}` : ''}
+          </span>
+        )}
+      </button>
+    ) : null);
 
   return (
     <div className="memory-details">
       <div className="memory-details__body">
-        <div className="memory-details__header">
-          <div>
-            {memory.shortDescription && (
-              <p className="memory-details__lede">{memory.shortDescription}</p>
-            )}
-          </div>
-          {onGenerateQR && (
-            <Button variant="outline" onClick={() => onGenerateQR(shareUrl)}>
-              Generate QR code
-            </Button>
-          )}
-          {(onNavigate || onToggleSave) && (
+        {(onGenerateQR || onNavigate) && (
+          <div className="memory-details__header">
+            <div />
             <div className="memory-details__actions">
-              {onToggleSave && (
-                <label className="save-memory-toggle">
-                  <input
-                    type="checkbox"
-                    checked={Boolean(memory.saved)}
-                    onChange={(event) => onToggleSave(memory, event.target.checked)}
-                  />
-                  <span>{memory.saved ? 'Memory saved' : 'Save memory'}</span>
-                </label>
+              {onGenerateQR && (
+                <Button variant="outline" onClick={() => onGenerateQR(shareUrl)}>
+                  Generate QR code
+                </Button>
               )}
               {onNavigate && (
                 <Button
@@ -104,78 +136,94 @@ function MemoryDetailsContent({
                 </Button>
               )}
             </div>
-          )}
-        </div>
+          </div>
+        )}
         {(memory.ownerHandle || memory.ownerName) && (
           <div className="memory-owner-bar">
-            <div className="memory-owner-avatar">
-              {memory.ownerAvatarUrl ? (
-                <img src={memory.ownerAvatarUrl} alt="" />
-              ) : (
-                <span>{(memory.ownerName || memory.ownerHandle || '?').charAt(0).toUpperCase()}</span>
-              )}
+            <div className="memory-owner-info">
+              <div className="memory-owner-avatar">
+                {memory.ownerAvatarUrl ? (
+                  <img src={memory.ownerAvatarUrl} alt="" />
+                ) : (
+                  <span>{(memory.ownerName || memory.ownerHandle || '?').charAt(0).toUpperCase()}</span>
+                )}
+              </div>
+              <div className="memory-owner-meta">
+                <button
+                  type="button"
+                  className="link-button"
+                  onClick={() => onViewProfile?.(memory.ownerHandle)}
+                  disabled={!memory.ownerHandle}
+                >
+                  @{memory.ownerHandle || 'unknown'}
+                </button>
+                {memory.ownerName && <span className="muted">{memory.ownerName}</span>}
+              </div>
             </div>
-            <div className="memory-owner-meta">
-              <button
-                type="button"
-                className="link-button"
-                onClick={() => onViewProfile?.(memory.ownerHandle)}
-                disabled={!memory.ownerHandle}
-              >
-                @{memory.ownerHandle || 'unknown'}
-              </button>
-              {memory.ownerName && <span className="muted">{memory.ownerName}</span>}
-            </div>
-            {canFollowOwner && (
-              <Button
-                variant={isFollowingOwner ? 'ghost' : 'primary'}
-                className="btn-sm"
-                onClick={onToggleFollowOwner}
-              >
-                {isFollowingOwner ? 'Unfollow' : 'Follow'}
-              </Button>
+            {(journeyButton || canFollowOwner) && (
+              <div className="memory-owner-actions">
+                {journeyButton}
+                {canFollowOwner && (
+                  <Button
+                    variant={isFollowingOwner ? 'ghost' : 'primary'}
+                    className="btn-sm"
+                    onClick={onToggleFollowOwner}
+                  >
+                    {isFollowingOwner ? 'Unfollow' : 'Follow'}
+                  </Button>
+                )}
+              </div>
             )}
           </div>
         )}
         <div className="memory-details__stats">
-          <div>
-            <span>Visibility</span>
+          <div
+            className="memory-details__stat"
+            aria-label={`Visibility: ${memory.visibility}`}
+            title={`Visibility: ${memory.visibility}`}
+          >
+            <span className="memory-details__stat-icon material-symbols-rounded" aria-hidden="true">
+              {visibilityIcon}
+            </span>
             <strong>{memory.visibility}</strong>
           </div>
-          <div>
-            <span>Radius</span>
-            <strong>{memory.radiusM} m</strong>
+          <div
+            className="memory-details__stat"
+            aria-label={`Radius: ${radiusText}`}
+            title={`Radius: ${radiusText}`}
+          >
+            <span className="memory-details__stat-icon material-symbols-rounded" aria-hidden="true">
+              near_me
+            </span>
+            <strong>{radiusText}</strong>
           </div>
-          <div>
-            <span>Views</span>
-            <strong className="memory-details__stat-icon">
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
-                <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z" />
-                <circle cx="12" cy="12" r="3" />
-              </svg>
-              {memory.timesFound}
-            </strong>
+          <div
+            className="memory-details__stat"
+            aria-label={`Views: ${viewCount}`}
+            title={`Views: ${viewCount}`}
+          >
+            <span className="memory-details__stat-icon material-symbols-rounded" aria-hidden="true">
+              visibility
+            </span>
+            <strong>{viewCount}</strong>
           </div>
-          <div>
-            <span>Expires</span>
-            <strong>{formatExpiry(memory.expiresAt)}</strong>
+          <div
+            className="memory-details__stat"
+            aria-label={`Expires: ${expiryText}`}
+            title={`Expires: ${expiryText}`}
+          >
+            <span className="memory-details__stat-icon material-symbols-rounded" aria-hidden="true">
+              hourglass_bottom
+            </span>
+            <strong>{expiryText}</strong>
           </div>
         </div>
-        {memory.journeyId && (
-          <div className="memory-details__journey">
-            Part {memory.journeyStep || 1}
-            {memory.journeyStepCount ? ` of ${memory.journeyStepCount}` : ''} in this journey
-          </div>
+        {memory.shortDescription && (
+          <>
+            <hr className="memory-details__divider" />
+            <p className="memory-details__lede">{memory.shortDescription}</p>
+            <hr className="memory-details__divider" />
+          </>
         )}
         {memory.tags?.length > 0 && (
           <div className="memory-details__tags">
@@ -242,15 +290,18 @@ function MemoryDetailsContent({
           </div>
         )}
       </div>
-      {onOpenExternal && (
-        <div className="memory-details__footer">
-          <Button
-            variant="ghost"
-            onClick={() => onOpenExternal(memory)}
-            aria-label="View on Google Maps"
-          >
-            View on Google Maps
-          </Button>
+      {(onOpenExternal || saveToggle) && (
+        <div className={`memory-details__footer ${saveToggle ? 'memory-details__footer--with-save' : ''}`}>
+          {saveToggle}
+          {onOpenExternal && (
+            <Button
+              variant="ghost"
+              onClick={() => onOpenExternal(memory)}
+              aria-label="View on Google Maps"
+            >
+              View on Google Maps
+            </Button>
+          )}
         </div>
       )}
       {activeImage && (

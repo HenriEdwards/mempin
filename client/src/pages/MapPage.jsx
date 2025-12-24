@@ -195,6 +195,7 @@ function MapPage() {
 
   const canPlaceMemory = Boolean(user);
   const canUnlock = Boolean(user);
+  const canSaveMemory = Boolean(user) && !isGuest;
 
   const requestLocation = useCallback(() => {
     if (!navigator.geolocation) {
@@ -204,34 +205,45 @@ function MapPage() {
     }
     setLocationError('');
     setIsRequestingLocation(true);
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const nextLocation = {
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-        };
-        setUserLocation(nextLocation);
-        try {
-          if (typeof window !== 'undefined') {
-            window.localStorage.setItem(LAST_LOCATION_KEY, JSON.stringify(nextLocation));
+    try {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const nextLocation = {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+          };
+          setUserLocation(nextLocation);
+          try {
+            if (typeof window !== 'undefined') {
+              window.localStorage.setItem(LAST_LOCATION_KEY, JSON.stringify(nextLocation));
+            }
+          } catch (error) {
+            // ignore storage errors
           }
-        } catch (error) {
-          // ignore storage errors
-        }
-        setLocationError('');
-        setIsRequestingLocation(false);
-      },
-      (error) => {
-        setLocationError(error.message || 'Unable to fetch location');
-        setIsRequestingLocation(false);
-      },
-      { enableHighAccuracy: true },
-    );
+          setLocationError('');
+          setIsRequestingLocation(false);
+        },
+        (error) => {
+          setLocationError(error.message || 'Unable to fetch location');
+          setIsRequestingLocation(false);
+        },
+        { enableHighAccuracy: true },
+      );
+    } catch (error) {
+      setLocationError(error.message || 'Unable to fetch location');
+      setIsRequestingLocation(false);
+    }
   }, []);
 
   useEffect(() => {
     requestLocation();
   }, [requestLocation]);
+
+  useEffect(() => {
+    if (userLocation) {
+      setIsRequestingLocation(false);
+    }
+  }, [userLocation]);
 
   useEffect(() => {
     const handleResize = () => setViewportWidth(window.innerWidth);
@@ -686,6 +698,10 @@ function MapPage() {
   const handleToggleSave = useCallback(
     async (memory, shouldSave) => {
       if (!memory?.id) return;
+      if (!user || isGuest) {
+        pushToast('Sign in to save memories', 'info');
+        return;
+      }
       try {
         if (shouldSave) {
           await api.saveMemory(memory.id);
@@ -703,7 +719,7 @@ function MapPage() {
         pushToast(error.message || 'Unable to update saved state', 'error');
       }
     },
-    [pushToast],
+    [pushToast, user, isGuest],
   );
 
   const buildRoutePlan = useCallback(
@@ -1616,7 +1632,12 @@ function MapPage() {
                 onGenerateQR={null}
                 onViewProfile={openProfileFromList}
                 onOpenExternal={handleOpenExternalMap}
-                onToggleSave={(mem, next) => handleToggleSave(mem, next)}
+                onToggleSave={
+                  canSaveMemory ? (mem, next) => handleToggleSave(mem, next) : null
+                }
+                onOpenJourney={(journeyId, journeyTitle, ownerHandle) =>
+                  openJourneyPanel({ journeyId, journeyTitle, ownerHandle })
+                }
                 canFollowOwner={followProps.canFollowOwner}
                 isFollowingOwner={followProps.isFollowingOwner}
                 onToggleFollowOwner={followProps.onToggleFollowOwner}
@@ -1719,6 +1740,7 @@ function MapPage() {
     clusterGroup,
     processMemorySelection,
     handleToggleSave,
+    canSaveMemory,
     lockedMemory,
     panels.right,
     canUnlock,
@@ -1736,6 +1758,7 @@ function MapPage() {
     memoriesForHandle.placed,
     memoriesForHandle.found,
     activeMemoriesHandle,
+    openJourneyPanel,
     showRightBack,
     showMemoryBack,
     openMemoryDetails,

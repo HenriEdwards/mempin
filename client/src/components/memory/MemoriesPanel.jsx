@@ -42,7 +42,19 @@ function MemoriesPanel({ placed = [], found = [], onSelectMemory, titleHandle = 
       memory.audioCount ?? assets.filter((asset) => asset.type === 'audio').length;
     const videoCount =
       memory.videoCount ?? assets.filter((asset) => asset.type === 'video').length;
+    const visibilityIcon =
+      memory.visibility === 'private'
+        ? 'lock'
+        : memory.visibility === 'followers'
+          ? 'groups'
+          : memory.visibility === 'unlisted'
+            ? 'link'
+            : 'public';
     const expiryText = formatExpiry(memory.expiresAt);
+    const radiusValue = Number(memory.radiusM);
+    const radiusText = Number.isFinite(radiusValue) ? `${radiusValue} m` : 'N/A';
+    const viewCountValue = Number(memory.timesFound);
+    const viewCount = Number.isFinite(viewCountValue) ? viewCountValue : 0;
     const timestamp = isFound ? memory.unlockedAt || memory.createdAt : memory.createdAt;
 
     return (
@@ -54,33 +66,58 @@ function MemoriesPanel({ placed = [], found = [], onSelectMemory, titleHandle = 
       >
         <div className="profile-memory-row">
           <div className="profile-memory-title">{memory.title}</div>
-          <span className="profile-memory-pill">{memory.visibility}</span>
-          <span className="profile-memory-pill">Found {memory.timesFound ?? 0}</span>
-          <span className="profile-memory-pill">{expiryText}</span>
-        </div>
-        <div className="profile-memory-meta profile-memory-assets">
-          <span className="profile-memory-asset">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-              <rect x="3" y="3" width="18" height="14" rx="2" ry="2" />
-              <circle cx="8.5" cy="8" r="1.5" />
-              <path d="M21 14l-5-5-4 4-2-2-4 4" />
-            </svg>
-            <span>{imageCount}</span>
-          </span>
-          <span className="profile-memory-asset">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-              <path d="M5 4h4l7 4v8l-7 4H5V4Z" />
-              <path d="M15 9v6" />
-            </svg>
-            <span>{audioCount}</span>
-          </span>
-          <span className="profile-memory-asset">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-              <path d="M4 6a2 2 0 0 1 2-2h8.5a2 2 0 0 1 1.6.8l3.5 4.2a2 2 0 0 1 0 2.6l-3.5 4.2a2 2 0 0 1-1.6.8H6a2 2 0 0 1-2-2V6Z" />
-              <path d="m12 9.5-2.5 2L12 13" />
-            </svg>
-            <span>{videoCount}</span>
-          </span>
+          <div className="profile-memory-stats">
+            <span className="profile-memory-pill">
+              <span className="material-symbols-rounded profile-memory-pill__icon" aria-hidden="true">
+                {visibilityIcon}
+              </span>
+              <span>{memory.visibility}</span>
+            </span>
+            <span className="profile-memory-pill">
+              <span className="material-symbols-rounded profile-memory-pill__icon" aria-hidden="true">
+                near_me
+              </span>
+              <span>{radiusText}</span>
+            </span>
+            <span className="profile-memory-pill">
+              <span className="material-symbols-rounded profile-memory-pill__icon" aria-hidden="true">
+                visibility
+              </span>
+              <span>{viewCount}</span>
+            </span>
+            <span className="profile-memory-pill">
+              <span className="material-symbols-rounded profile-memory-pill__icon" aria-hidden="true">
+                hourglass_bottom
+              </span>
+              <span>{expiryText}</span>
+            </span>
+            {imageCount > 0 && (
+              <span className="profile-memory-pill">
+                <span className="material-symbols-rounded profile-memory-pill__icon" aria-hidden="true">
+                  image
+                </span>
+                <span>{imageCount}</span>
+              </span>
+            )}
+            {audioCount > 0 && (
+              <span className="profile-memory-pill">
+                <span className="material-symbols-rounded profile-memory-pill__icon" aria-hidden="true">
+                  music_note
+                </span>
+                <span>{audioCount}</span>
+              </span>
+            )}
+            {videoCount > 0 && (
+              <span className="profile-memory-pill">
+                <span className="profile-memory-pill__icon" aria-hidden="true">
+                  <svg xmlns="http://www.w3.org/2000/svg" height="18" viewBox="0 -960 960 960" width="18" fill="currentColor">
+                    <path d="m460-380 280-180-280-180v360ZM320-240q-33 0-56.5-23.5T240-320v-480q0-33 23.5-56.5T320-880h480q33 0 56.5 23.5T880-800v480q0 33-23.5 56.5T800-240H320Zm0-80h480v-480H320v480ZM160-80q-33 0-56.5-23.5T80-160v-560h80v560h560v80H160Zm160-720v480-480Z" />
+                  </svg>
+                </span>
+                <span>{videoCount}</span>
+              </span>
+            )}
+          </div>
         </div>
         {timestamp && (
           <div className="profile-memory-sub mt-4">

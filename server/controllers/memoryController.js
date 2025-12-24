@@ -493,8 +493,25 @@ const getMemoryDetails = asyncHandler(async (req, res) => {
   if (!memory || !memory.isActive) {
     return res.status(404).json({ error: 'Memory not found' });
   }
-  if (isMemoryExpired(memory) && memory.ownerId !== req.user.id) {
+  const currentUserId = req.user?.id || null;
+  const isOwner = currentUserId && memory.ownerId === currentUserId;
+
+  if (isMemoryExpired(memory) && !isOwner) {
     return res.status(410).json({ error: 'Memory has expired' });
+  }
+
+  const targetUserIds = await memoryTargetModel.getTargetsForMemory(memoryId);
+  const followerOwnerSet = await friendsModel.getFollowingOwnerSet(
+    [memory.ownerId],
+    currentUserId,
+  );
+
+  const canView = canAccessMemory(memory, currentUserId, followerOwnerSet, {
+    [memory.id]: targetUserIds,
+  });
+  if (!canView) {
+    const status = currentUserId ? 403 : 401;
+    return res.status(status).json({ error: 'You are not allowed to view this memory' });
   }
 
   const isUnlockedFree =
@@ -506,12 +523,15 @@ const getMemoryDetails = asyncHandler(async (req, res) => {
     new Date(memory.unlockAvailableFrom).getTime() > Date.now();
 
   let unlockedAt = memory.createdAt;
-  if (memory.ownerId !== req.user.id) {
+  if (!isOwner) {
     if (hasTimeLock) {
       return res.status(403).json({ error: 'Memory not unlocked yet' });
     }
     if (!isUnlockedFree) {
-      const unlockRecord = await memoryUnlockModel.getUnlockRecord(memoryId, req.user.id);
+      if (!currentUserId) {
+        return res.status(401).json({ error: 'Sign in to unlock this memory' });
+      }
+      const unlockRecord = await memoryUnlockModel.getUnlockRecord(memoryId, currentUserId);
       if (!unlockRecord) {
         return res.status(403).json({ error: 'Memory not unlocked yet' });
       }
@@ -520,7 +540,7 @@ const getMemoryDetails = asyncHandler(async (req, res) => {
   }
 
   const memoryWithAssets = await attachAssetsToMemory(memory);
-  const isSaved = await memorySaveModel.isSaved(memoryId, req.user.id);
+  const isSaved = currentUserId ? await memorySaveModel.isSaved(memoryId, currentUserId) : false;
   return res.json({
     memory: {
       ...memoryWithAssets,

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+﻿import { useEffect, useRef, useState } from 'react';
 import Input from '../ui/Input.jsx';
 import TextArea from '../ui/TextArea.jsx';
 import Select from '../ui/Select.jsx';
@@ -115,6 +115,7 @@ function PlaceMemoryForm({
   const [videos, setVideos] = useState([]);
   const [expiryError, setExpiryError] = useState('');
   const [unlockError, setUnlockError] = useState('');
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const mediaInputRef = useRef(null);
 
   useEffect(() => {
@@ -157,6 +158,26 @@ function PlaceMemoryForm({
     },
     [imagePreviews],
   );
+
+  useEffect(() => {
+    if (showAdvanced) return;
+    if (
+      form.visibility !== 'public' ||
+      Boolean(form.unlockAvailableFrom) ||
+      targetHandles.length > 0 ||
+      form.journeyId ||
+      form.createJourney
+    ) {
+      setShowAdvanced(true);
+    }
+  }, [
+    form.createJourney,
+    form.journeyId,
+    form.unlockAvailableFrom,
+    form.visibility,
+    showAdvanced,
+    targetHandles.length,
+  ]);
 
   const persistForm = (updater) => {
     setForm((prev) => {
@@ -394,6 +415,78 @@ const handleCreateJourneySelect = () => {
           <span>{form.shortDescription.length}/120</span>
         </div>
         <div className="field">
+          <label>Expiry</label>
+          <div className="chip-group">
+            {EXPIRY_PRESETS.map((option) => {
+              const active = form.expiryMode === 'preset' && Number(form.expiryPreset) === option.value;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  className={`chip chip--clickable ${active ? 'chip--active' : ''}`}
+                  onClick={() => {
+                    setExpiryError('');
+                    persistForm((prev) => ({
+                      ...prev,
+                      expiryMode: 'preset',
+                      expiryPreset: option.value,
+                    }));
+                  }}
+                >
+                  {option.label}
+                </button>
+              );
+            })}
+            <button
+              type="button"
+              className={`chip chip--clickable ${form.expiryMode === 'forever' ? 'chip--active' : ''}`}
+              onClick={() => {
+                setExpiryError('');
+                persistForm((prev) => ({
+                  ...prev,
+                  expiryMode: 'forever',
+                }));
+              }}
+            >
+              Forever
+            </button>
+            <button
+              type="button"
+              className={`chip chip--clickable ${form.expiryMode === 'custom' ? 'chip--active' : ''}`}
+              onClick={() => {
+                setExpiryError('');
+                persistForm((prev) => ({
+                  ...prev,
+                  expiryMode: 'custom',
+                }));
+              }}
+            >
+              Custom
+            </button>
+          </div>
+          {form.expiryMode === 'custom' && (
+            <div style={{ marginTop: '0.5rem' }}>
+              <Input
+                label="Custom date/time"
+                type="datetime-local"
+                value={form.customExpiry}
+                onChange={(event) => {
+                  setExpiryError('');
+                  persistForm((prev) => ({
+                    ...prev,
+                    customExpiry: event.target.value,
+                    expiryMode: event.target.value ? 'custom' : prev.expiryMode,
+                  }));
+                }}
+              />
+            </div>
+          )}
+          {expiryError && <p className="input-error" style={{ marginTop: '0.4rem' }}>{expiryError}</p>}
+        </div>
+      </div>
+
+      <div className="form-column">
+        <div className="field">
           <Input
             label="Tags"
             value={form.tags}
@@ -524,221 +617,6 @@ const handleCreateJourneySelect = () => {
           </div>
           {unlockError && <p className="input-error" style={{ marginTop: '0.35rem' }}>{unlockError}</p>}
         </div>
-        <div className="field">
-          <label>Targeted recipients (handles)</label>
-          <div className="chips-input">
-            <div className="chips-input__selected">
-              {targetHandles.map((handle) => (
-                <span key={handle} className="chip chip--clickable chips-input__chip">
-                  @{handle}
-                  <button
-                    type="button"
-                    className="chips-input__remove"
-                    onClick={() => removeTargetHandle(handle)}
-                    aria-label={`Remove ${handle}`}
-                  >
-                    ×
-                  </button>
-                </span>
-              ))}
-              <input
-                type="text"
-                value={targetInput}
-                onChange={(event) => setTargetInput(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' || event.key === ',') {
-                    event.preventDefault();
-                    addTargetHandle(targetInput);
-                  }
-                }}
-                placeholder={targetHandles.length ? 'Add another…' : '@friend'}
-                className="chips-input__field"
-              />
-            </div>
-            {targetInput.trim() && (
-              <div className="chips-input__suggestions">
-                {(() => {
-                  const filtered = targetSuggestions
-                    .filter((item) => {
-                      const handle = normalizeHandle(item.handle || '');
-                      if (!handle) return false;
-                      if (targetHandles.includes(handle)) return false;
-                      return handle.includes(normalizeHandle(targetInput));
-                    })
-                    .slice(0, 6);
-                  if (!filtered.length) {
-                    return (
-                      <div className="chips-input__suggestion chips-input__suggestion--empty">
-                        No matches
-                      </div>
-                    );
-                  }
-                  return filtered.map((item) => {
-                    const handle = normalizeHandle(item.handle || '');
-                    return (
-                      <button
-                        type="button"
-                        key={handle}
-                        className="chips-input__suggestion"
-                        onClick={() => addTargetHandle(handle)}
-                      >
-                        @{handle}
-                        {item.name ? <span className="muted"> — {item.name}</span> : null}
-                      </button>
-                    );
-                  });
-                })()}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <div className="form-column">
-        <Select
-          label="Visibility"
-          value={form.visibility}
-          onChange={(event) => updateField('visibility', event.target.value)}
-        >
-          {VISIBILITY_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </Select>
-        <div className="field">
-          <label>Unlock available from (optional)</label>
-          <Input
-            type="datetime-local"
-            value={form.unlockAvailableFrom}
-            onChange={(event) => updateField('unlockAvailableFrom', event.target.value)}
-          />
-        </div>
-
-        <div className="field">
-          <label>Expiry</label>
-          <div className="chip-group">
-            {EXPIRY_PRESETS.map((option) => {
-              const active = form.expiryMode === 'preset' && Number(form.expiryPreset) === option.value;
-              return (
-                <button
-                  key={option.value}
-                  type="button"
-                  className={`chip chip--clickable ${active ? 'chip--active' : ''}`}
-                  onClick={() => {
-                    setExpiryError('');
-                persistForm((prev) => ({
-                  ...prev,
-                  expiryMode: 'preset',
-                  expiryPreset: option.value,
-                }));
-              }}
-            >
-              {option.label}
-            </button>
-          );
-            })}
-            <button
-              type="button"
-              className={`chip chip--clickable ${form.expiryMode === 'forever' ? 'chip--active' : ''}`}
-              onClick={() => {
-                setExpiryError('');
-                persistForm((prev) => ({
-                  ...prev,
-                  expiryMode: 'forever',
-                }));
-              }}
-            >
-              Forever
-            </button>
-          </div>
-          <div style={{ marginTop: '0.5rem' }}>
-            <Input
-              label="Custom date/time"
-              type="datetime-local"
-              value={form.customExpiry}
-              onChange={(event) => {
-                setExpiryError('');
-                persistForm((prev) => ({
-                  ...prev,
-                  customExpiry: event.target.value,
-                  expiryMode: event.target.value ? 'custom' : prev.expiryMode,
-                }));
-              }}
-            />
-          </div>
-          {expiryError && <p className="input-error" style={{ marginTop: '0.4rem' }}>{expiryError}</p>}
-        </div>
-        <div className="field">
-          <div className="journey-label-row">
-            <label>Journey</label>
-          </div>
-          <div className="journey-options">
-            <button
-              type="button"
-              className={`journey-option ${form.createJourney ? 'journey-option--active' : ''}`}
-              onClick={() => {
-                if (form.createJourney) {
-                  handleJourneyNone();
-                } else {
-                  handleCreateJourneySelect();
-                }
-              }}
-            >
-              {form.createJourney ? '- New journey' : '+ New journey'}
-            </button>
-            {journeys
-              .filter((journey) => !journey.completed)
-              .map((journey) => (
-              <button
-                key={journey.id}
-                type="button"
-                className={`journey-option ${form.journeyId === String(journey.id) ? 'journey-option--active' : ''}`}
-                onClick={() => handleJourneySelect(String(journey.id))}
-                disabled={form.createJourney}
-                title={`${journey.title} (${journey.stepCount || 0} steps)`}
-              >
-                {journey.title}
-                <span className="journey-option__meta">{journey.stepCount || 0} steps</span>
-              </button>
-            ))}
-          </div>
-          {form.createJourney && (
-            <div className="journey-new-fields">
-              <Input
-                label="New journey title"
-                value={form.newJourneyTitle}
-                onChange={(event) => updateField('newJourneyTitle', event.target.value)}
-                placeholder="Name your journey"
-              />
-              <TextArea
-                label="New journey description"
-                value={form.newJourneyDescription}
-                onChange={(event) => updateField('newJourneyDescription', event.target.value)}
-              />
-            </div>
-          )}
-          {(form.journeyId || form.createJourney) && (
-            <div className="journey-step-row">
-              <div className="journey-step-display">
-                <span className="chip chip--inline">Step {form.journeyStep || 1}</span>
-              </div>
-              <label className="journey-complete">
-                <input
-                  type="checkbox"
-                  checked={form.completeJourney}
-                  onChange={(event) =>
-                    persistForm((prev) => ({
-                      ...prev,
-                      completeJourney: event.target.checked,
-                    }))
-                  }
-                />
-                <span>Final step</span>
-              </label>
-            </div>
-          )}
-        </div>
         <div
           className="media-dropzone"
           onDragOver={(event) => event.preventDefault()}
@@ -775,6 +653,187 @@ const handleCreateJourneySelect = () => {
           )}
         </div>
       </div>
+
+      <div className="advanced-toggle-row">
+        <button
+          type="button"
+          className="advanced-toggle"
+          onClick={() => setShowAdvanced((prev) => !prev)}
+        >
+          <span className="advanced-toggle__chevron" aria-hidden="true">
+            {showAdvanced ? '▾' : '▸'}
+          </span>
+          <span>Advanced settings</span>
+        </button>
+        <div className="advanced-toggle__divider" />
+      </div>
+
+      {showAdvanced && (
+        <div className="advanced-section">
+          <div className="advanced-grid">
+            <Select
+              label="Visibility"
+              value={form.visibility}
+              onChange={(event) => updateField('visibility', event.target.value)}
+            >
+              {VISIBILITY_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </Select>
+
+            <div className="field">
+              <label>Unlock available from (optional)</label>
+              <Input
+                type="datetime-local"
+                value={form.unlockAvailableFrom}
+                onChange={(event) => updateField('unlockAvailableFrom', event.target.value)}
+              />
+            </div>
+
+            <div className="field">
+              <label>Targeted recipients (handles)</label>
+              <div className="chips-input">
+                <div className="chips-input__selected">
+                  {targetHandles.map((handle) => (
+                    <span key={handle} className="chip chip--clickable chips-input__chip">
+                      @{handle}
+                      <button
+                        type="button"
+                        className="chips-input__remove"
+                        onClick={() => removeTargetHandle(handle)}
+                        aria-label={`Remove ${handle}`}
+                      >
+                        A-
+                      </button>
+                    </span>
+                  ))}
+                  <input
+                    type="text"
+                    value={targetInput}
+                    onChange={(event) => setTargetInput(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ',') {
+                        event.preventDefault();
+                        addTargetHandle(targetInput);
+                      }
+                    }}
+                    placeholder={targetHandles.length ? 'Add another' : '@friend'}
+                    className="chips-input__field"
+                  />
+                </div>
+                {targetInput.trim() && (
+                  <div className="chips-input__suggestions">
+                    {(() => {
+                      const filtered = targetSuggestions
+                        .filter((item) => {
+                          const handle = normalizeHandle(item.handle || '');
+                          if (!handle) return false;
+                          if (targetHandles.includes(handle)) return false;
+                          return handle.includes(normalizeHandle(targetInput));
+                        })
+                        .slice(0, 6);
+                      if (!filtered.length) {
+                        return (
+                          <div className="chips-input__suggestion chips-input__suggestion--empty">
+                            No matches
+                          </div>
+                        );
+                      }
+                      return filtered.map((item) => {
+                        const handle = normalizeHandle(item.handle || '');
+                        return (
+                          <button
+                            type="button"
+                            key={handle}
+                            className="chips-input__suggestion"
+                            onClick={() => addTargetHandle(handle)}
+                          >
+                            @{handle}
+                            {item.name ? <span className="muted"> {item.name}</span> : null}
+                          </button>
+                        );
+                      });
+                    })()}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="field">
+              <div className="journey-label-row">
+                <label>Journey</label>
+              </div>
+              <div className="journey-options">
+                <button
+                  type="button"
+                  className={`journey-option ${form.createJourney ? 'journey-option--active' : ''}`}
+                  onClick={() => {
+                    if (form.createJourney) {
+                      handleJourneyNone();
+                    } else {
+                      handleCreateJourneySelect();
+                    }
+                  }}
+                >
+                  {form.createJourney ? '- New journey' : '+ New journey'}
+                </button>
+                {journeys
+                  .filter((journey) => !journey.completed)
+                  .map((journey) => (
+                  <button
+                    key={journey.id}
+                    type="button"
+                    className={`journey-option ${form.journeyId === String(journey.id) ? 'journey-option--active' : ''}`}
+                    onClick={() => handleJourneySelect(String(journey.id))}
+                    disabled={form.createJourney}
+                    title={`${journey.title} (${journey.stepCount || 0} steps)`}
+                  >
+                    {journey.title}
+                    <span className="journey-option__meta">{journey.stepCount || 0} steps</span>
+                  </button>
+                ))}
+              </div>
+              {form.createJourney && (
+                <div className="journey-new-fields">
+                  <Input
+                    label="New journey title"
+                    value={form.newJourneyTitle}
+                    onChange={(event) => updateField('newJourneyTitle', event.target.value)}
+                    placeholder="Name your journey"
+                  />
+                  <TextArea
+                    label="New journey description"
+                    value={form.newJourneyDescription}
+                    onChange={(event) => updateField('newJourneyDescription', event.target.value)}
+                  />
+                </div>
+              )}
+              {(form.journeyId || form.createJourney) && (
+                <div className="journey-step-row">
+                  <div className="journey-step-display">
+                    <span className="chip chip--inline">Step {form.journeyStep || 1}</span>
+                  </div>
+                  <label className="journey-complete">
+                    <input
+                      type="checkbox"
+                      checked={form.completeJourney}
+                      onChange={(event) =>
+                        persistForm((prev) => ({
+                          ...prev,
+                          completeJourney: event.target.checked,
+                        }))
+                      }
+                    />
+                    <span>Final step</span>
+                  </label>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="form-actions">
         <Button type="button" variant="ghost" onClick={onCancel}>

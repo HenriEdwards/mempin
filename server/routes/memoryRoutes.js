@@ -21,7 +21,7 @@ router.get('/all', optionalAuth, getAllMemories);
 router.get('/placed', requireAuth, getPlacedMemories);
 router.get('/unlocked', requireAuth, getUnlockedMemories);
 router.get('/saved', requireAuth, getSavedMemories);
-router.get('/:id', requireAuth, getMemoryDetails);
+router.get('/:id', optionalAuth, getMemoryDetails);
 router.post('/', requireAuth, ...createMemory);
 router.post('/:id/unlock', requireAuth, unlockMemory);
 router.post('/:id/save', requireAuth, saveMemory);

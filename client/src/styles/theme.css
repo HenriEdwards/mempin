@@ -1,6 +1,6 @@
 :root {
-  --color-primary: #00b4e1;
-  --color-primary-soft: rgba(4, 221, 255, 0.16);
+  --color-primary: #f97316;
+  --color-primary-soft: rgba(249, 115, 22, 0.18);
   --color-surface: #f8f8f8;
   --color-surface-alt: #f1f1f1;
   --color-surface-muted: #ebebeb;
@@ -12,7 +12,7 @@
   --panel-bg: #ffffff;
   --color-text: #1f1f1f;
   --color-text-muted: #6e6e73;
-  --color-accent: #00b4e1;
+  --color-accent: #f97316;
   --shadow-soft: none;
   --shadow-strong: none;
   --explorer-bg: rgba(255, 255, 255, 0.9);
@@ -22,13 +22,13 @@
   --explorer-subtext: #4a4a4a;
   --explorer-button-bg: rgba(0, 0, 0, 0.02);
   --explorer-button-border: rgba(0, 0, 0, 0.06);
-  --explorer-glow-a: rgba(4, 221, 255, 0.16);
-  --explorer-glow-b: rgba(4, 221, 255, 0.12);
+  --explorer-glow-a: rgba(249, 115, 22, 0.12);
+  --explorer-glow-b: rgba(249, 115, 22, 0.08);
 }
 
 :root[data-theme='dark'] {
-  --color-primary: #00b4e1;
-  --color-primary-soft: rgba(4, 221, 255, 0.22);
+  --color-primary: #f97316;
+  --color-primary-soft: rgba(249, 115, 22, 0.26);
   --color-surface: #171717;
   --color-surface-alt: #1f1f1f;
   --color-surface-muted: #121212;
@@ -36,7 +36,7 @@
   --color-border-strong: #363636;
   --color-text: #f0f0f0;
   --color-text-muted: #a8a8a8;
-  --color-accent: #00b4e1;
+  --color-accent: #f97316;
   --shadow-soft: none;
   --shadow-strong: none;
   --panel-bg: rgba(24, 24, 24, 0.94);
@@ -47,6 +47,6 @@
   --explorer-subtext: #4a4a4a;
   --explorer-button-bg: rgba(255, 255, 255, 0.04);
   --explorer-button-border: rgba(255, 255, 255, 0.08);
-  --explorer-glow-a: rgba(4, 221, 255, 0.2);
-  --explorer-glow-b: rgba(4, 221, 255, 0.16);
+  --explorer-glow-a: rgba(249, 115, 22, 0.18);
+  --explorer-glow-b: rgba(249, 115, 22, 0.12);
 }
